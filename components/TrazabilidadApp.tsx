@@ -336,7 +336,7 @@ export default function TrazabilidadApp() {
   const multi = checkedNodes.length > 1;
 
   const selAnc = ANCESTORS[(sel?.tipo as Tipo) || 'Eje'] || [];
-  const histLabels = selAnc.concat(['Montaje', 'Desmontaje', 'Driver parcial']);
+  const histLabels: string[] = (selAnc as string[]).concat(['Montaje', 'Desmontaje', 'Driver parcial']);
   const sortIdx = selAnc.length;
   const histCols = histLabels.map((label) => ({ label }));
 

@@ -368,8 +368,8 @@ export default function TrazabilidadApp() {
   const hijoRowsData = buildHijoRows(sel, hijoValue);
 
   // ---- atributos tab ----
-  const activoOpts = ['Kilómetros', 'Ciclos', 'Horas', 'Fecha de montaje', 'Estado'];
-  const posOpts = ['Coche', 'Bogie', 'Eje', 'Rueda', 'Lado'];
+  const activoOpts = ['Kilómetros', 'Ciclos', 'Horas', 'Fecha overhaul', 'Km overhaul', 'Modelo', 'Material'];
+  const posOpts = ['Location', 'Visibility', 'CAF-Code', 'Aux_Posición', 'Knuckle'];
   const aOn = s.chipsActivo.length > 0;
   const pOn = s.chipsPos.length > 0;
   const toggle = (key: 'chipsActivo' | 'chipsPos') => (label: string) =>
@@ -402,13 +402,19 @@ export default function TrazabilidadApp() {
   const EXTRA: Record<string, (n: TreeNode, i: number) => string> = {
     Ciclos: (_n, i) => '1.' + (240 + i * 37),
     Horas: (_n, i) => (3180 + i * 54).toLocaleString('es-ES'),
-    'Fecha de montaje': () => '12/03/2024',
-    Estado: (_n, i) => (i % 3 === 2 ? 'En revisión' : 'Operativo'),
-    Coche: (_n, i) => 'Coche ' + ((i % 5) + 1),
-    Bogie: (_n, i) => 'Bogie ' + ((i % 10) + 1),
-    Eje: (_n, i) => 'Eje ' + ((i % 20) + 1),
-    Rueda: (_n, i) => 'Rueda ' + ((i % 40) + 1),
-    Lado: (_n, i) => (i % 2 === 0 ? 'Izquierdo' : 'Derecho'),
+    'Fecha overhaul': (_n, i) => {
+      const d = new Date(2024, 0, 15 + i * 40);
+      const p = (v: number) => String(v).padStart(2, '0');
+      return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
+    },
+    'Km overhaul': (_n, i) => (85000 + i * 3200).toLocaleString('es-ES') + 'km',
+    Modelo: (_n, i) => 'MOD-' + (100 + (i % 6)),
+    Material: (_n, i) => (i % 2 === 0 ? 'Acero forjado' : 'Fundición'),
+    Location: (_n, i) => 'ALM-' + ['Mad', 'Bcn', 'Zar'][i % 3],
+    Visibility: (_n, i) => (i % 2 === 0 ? 'Pública' : 'Restringida'),
+    'CAF-Code': (_n, i) => 'CAF-' + (10000 + i * 7),
+    Aux_Posición: (_n, i) => 'AUX-' + ((i % 4) + 1),
+    Knuckle: (_n, i) => (i % 2 === 0 ? 'N1' : 'N2'),
   };
   const atrNodes = multi ? checkedNodes : sel ? [sel] : [];
   const atrCols = atrColsLabels.map((label) => ({ label }));

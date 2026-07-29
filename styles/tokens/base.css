@@ -1,0 +1,9 @@
+/* Baseline element styling for Leadmind surfaces. */
+html { -webkit-font-smoothing: antialiased; -moz-osx-osx-font-smoothing: grayscale; }
+body { margin: 0; font-family: var(--lm-font); font-size: 16px; line-height: 25px; letter-spacing: 0.5px; color: var(--lm-on-surface); background: var(--lm-surface-container); }
+*, *::before, *::after { box-sizing: border-box; }
+a { color: var(--lm-primary); text-decoration: underline; text-underline-offset: 2px; }
+a:hover { color: var(--lm-primary-bright); }
+a:active { color: var(--lm-on-primary-container); }
+::selection { background: var(--lm-secondary-container); color: var(--lm-on-secondary-container); }
+:focus-visible { outline: var(--lm-focus-ring-width) solid var(--lm-focus-ring-color); outline-offset: var(--lm-focus-ring-offset); }

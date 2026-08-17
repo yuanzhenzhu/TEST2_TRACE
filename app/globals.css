@@ -1,0 +1,33 @@
+@import '../styles/tokens/fonts.css';
+@import '../styles/tokens/fig-tokens.css';
+@import '../styles/tokens/leadmind.tokens.css';
+@import '../styles/tokens/fig-typography.css';
+@import '../styles/tokens/semantic.css';
+@import '../styles/tokens/base.css';
+
+html,
+body {
+  margin: 0;
+  background: var(--lm-surface-container, #f0f0f4);
+}
+
+#__next,
+main {
+  min-height: 100vh;
+}
+
+a {
+  color: #2b1c74;
+}
+
+a:hover {
+  color: #170f3e;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  font-family: inherit;
+}

@@ -1,0 +1,165 @@
+/* Leadmind semantic aliases — short, product-facing names on top of the raw
+   Figma variables in fig-tokens.css. Length tokens are emitted here WITH units
+   (fig-tokens.css keeps floats unitless). */
+:root {
+  /* ── Brand / core ─────────────────────────────────────────── */
+  --lm-primary: var(--leadmind-color-sys-primary);                       /* #2B1C74 */
+  --lm-on-primary: var(--leadmind-color-sys-on-primary);                 /* #FFFFFF */
+  --lm-primary-container: var(--leadmind-color-sys-primary-container);   /* #B7ADEB */
+  --lm-on-primary-container: var(--leadmind-color-sys-on-primary-container); /* #201556 */
+  --lm-primary-bright: var(--leadmind-color-ref-primary-primary60);      /* #614AD3 */
+  --lm-secondary: var(--leadmind-color-sys-secondary);                   /* #1E1452 */
+  --lm-secondary-container: var(--leadmind-color-sys-secondary-container); /* #DFDAF6 */
+  --lm-on-secondary-container: var(--leadmind-color-sys-on-secondary-container); /* #170F3E */
+  --lm-tertiary: var(--leadmind-color-ref-terciary-terciary40);            /* #295214 */
+  --lm-tertiary-container: var(--leadmind-color-ref-terciary-terciary90);  /* #E3F6DA */
+  --lm-on-tertiary-container: var(--leadmind-color-ref-terciary-terciary10); /* #0A1505 */
+
+  /* ── Surfaces ─────────────────────────────────────────────── */
+  --lm-background: var(--leadmind-color-sys-background);                 /* #FFFFFF */
+  --lm-surface: var(--leadmind-color-sys-surface);                       /* #F9F9FB */
+  --lm-surface-lowest: var(--leadmind-color-sys-surface-container-lowest); /* #FFFFFF */
+  --lm-surface-container: var(--leadmind-color-sys-surface-container);   /* #F0F0F4 — app canvas */
+  --lm-surface-highest: var(--leadmind-color-sys-surface-container-highest); /* #E4E2E8 */
+
+  /* ── Text ─────────────────────────────────────────────────── */
+  --lm-on-surface: var(--leadmind-color-sys-on-surface);                 /* #18171C */
+  --lm-on-surface-variant: var(--leadmind-color-sys-on-surface-variant); /* #474554 */
+
+  /* ── Lines ────────────────────────────────────────────────── */
+  --lm-outline: var(--leadmind-color-sys-outline);                       /* #77728D — field & button strokes */
+  --lm-outline-variant: var(--leadmind-color-sys-outline-variant);       /* #C8C7D1 — table & card strokes */
+
+  /* ── Semantic ─────────────────────────────────────────────── */
+  --lm-danger: var(--leadmind-color-custom-semantic-danger);
+  --lm-danger-container: var(--leadmind-color-custom-semantic-danger-container);
+  --lm-on-danger-container: var(--leadmind-color-custom-semantic-on-danger-container);
+  --lm-success: var(--leadmind-color-custom-semantic-success);
+  --lm-success-container: var(--leadmind-color-custom-semantic-success-container);
+  --lm-on-success-container: var(--leadmind-color-custom-semantic-on-success-container);
+  --lm-warning: var(--leadmind-color-custom-semantic-warning);
+  --lm-warning-container: var(--leadmind-color-ref-semantic-warning-warning90);
+  --lm-on-warning-container: var(--leadmind-color-custom-semantic-on-warning-container);
+  --lm-attention: var(--leadmind-color-custom-semantic-attention);
+  /* Material role aliases now present in the variable set */
+  --lm-sys-success: var(--leadmind-color-sys-success);
+  --lm-on-sys-success: var(--leadmind-color-sys-on-success);
+  --lm-sys-warning: var(--leadmind-color-sys-warning);
+  --lm-on-sys-warning: var(--leadmind-color-sys-on-warning);
+  --lm-inverse-surface: var(--leadmind-color-sys-inverse-surface);
+  --lm-inverse-on-surface: var(--leadmind-color-sys-inverse-on-surface);
+  --lm-attention-container: var(--leadmind-color-custom-semantic-attention-container);
+  --lm-on-attention-container: var(--leadmind-color-custom-semantic-on-attention-container);
+  --lm-info: var(--leadmind-color-ref-semantic-info-info90);           /* the tag fill #BAD5E8 */
+  --lm-info-solid: var(--leadmind-color-custom-semantic-info);         /* the solid info ink */
+  --lm-info-container: var(--leadmind-color-custom-semantic-info-container-variant);
+  --lm-on-info-container: var(--leadmind-color-custom-semantic-on-info-container);
+
+  /* ── Editorial / data-viz palettes ────────────────────────── */
+  /* "pale" — five soft fills, each with hover / drag / light steps.
+     Use for grouping, highlights and chart bands.                */
+  --lm-pale-1: var(--leadmind-color-custom-pale-pale-1);
+  --lm-pale-1-light: var(--leadmind-color-custom-pale-pale-1-light);
+  --lm-pale-2: var(--leadmind-color-custom-pale-pale-2);
+  --lm-pale-2-light: var(--leadmind-color-custom-pale-pale-2-light);
+  --lm-pale-3: var(--leadmind-color-custom-pale-pale-3);
+  --lm-pale-3-light: var(--leadmind-color-custom-pale-pale-3-light);
+  --lm-pale-4: var(--leadmind-color-custom-pale-pale-4);
+  --lm-pale-4-light: var(--leadmind-color-custom-pale-pale-4-light);
+  --lm-pale-5: var(--leadmind-color-custom-pale-pale-5);
+  --lm-pale-5-light: var(--leadmind-color-custom-pale-pale-5-light);
+  /* "vibrant" — a 40-step categorical series for charts and maps.
+     Reference the raw --leadmind-color-custom-vibrant-vibrant-N tokens
+     directly when you need more than the first five.            */
+  --lm-vibrant-1: var(--leadmind-color-custom-vibrant-vibrant-1);
+  --lm-vibrant-2: var(--leadmind-color-custom-vibrant-vibrant-2);
+  --lm-vibrant-3: var(--leadmind-color-custom-vibrant-vibrant-3);
+  --lm-vibrant-4: var(--leadmind-color-custom-vibrant-vibrant-4);
+  --lm-vibrant-5: var(--leadmind-color-custom-vibrant-vibrant-5);
+
+  /* ── Utility fills ────────────────────────────────────────── */
+  --lm-section-background: var(--leadmind-color-add-on-section-background); /* #F5F5F5 */
+  --lm-placeholder-image: var(--leadmind-color-add-on-placeholder-image);   /* #EBE7E7 */
+
+  /* ── State layers — read from the Components.fig button states ─
+     hover  = on-surface-variant 8%   rgba(77,77,77,.08)
+     focus  = on-surface-variant 10%  rgba(77,77,77,.10)  + focus ring
+     press  = on-secondary-container 8% over the pressed container fill
+     disabled = 12% outline / 38% content                            */
+  --lm-state-hover: var(--leadmind-color-state-layers-onsurfacevariant-opacity-0-08);
+  --lm-state-focus: var(--leadmind-color-state-layers-onsurfacevariant-opacity-0-10);
+  --lm-state-press: var(--leadmind-color-state-layers-onsecondarycontainer-opacity-0-08);
+  --lm-state-ripple: var(--leadmind-color-state-layers-onsecondarycontainer-opacity-0-10);
+  --lm-state-primary-hover: var(--leadmind-color-state-layers-primary-opacity-0-08);
+  --lm-state-primary-press: var(--leadmind-color-state-layers-primary-opacity-0-10);
+  --lm-state-on-primary-hover: var(--leadmind-color-state-layers-onprimary-opacity-0-08);
+  --lm-state-on-primary-press: var(--leadmind-color-state-layers-onprimary-opacity-0-10);
+  --lm-state-disabled-content: var(--leadmind-color-state-layers-onsurface-opacity-0-38);
+  --lm-state-disabled-surface: var(--leadmind-color-state-layers-onsurface-opacity-0-12);
+  /* the pressed container fill shared by outlined / text / tonal buttons */
+  --lm-state-press-container: var(--lm-secondary-container);
+
+  /* ── Focus ring — .Focus indicator: 3px secondary40, 2px outside ── */
+  --lm-focus-ring-color: var(--leadmind-color-ref-secondary-secondary40); /* #1E1452 */
+  --lm-focus-ring-width: 3px;
+  --lm-focus-ring-offset: 2px;
+  --lm-overlay-scrim: var(--leadmind-color-custom-interface-overlay-light);  /* rgba(0,0,0,.32) */
+  --lm-overlay: var(--leadmind-color-custom-interface-overlay);             /* rgba(38,38,41,.8) */
+  --lm-overlay-inverse: var(--leadmind-color-custom-interface-overlay-inverse);
+
+  /* ── Type ─────────────────────────────────────────────────── */
+  --lm-font: "Roboto", -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --lm-font-doc: "Inter", var(--lm-font);
+
+  /* Type scale (px) — the full ramp from the token export.
+     10 · 12 · 14 · 16 · 22 · 24 · 28 · 32 · 36 · 45 · 57      */
+  --lm-text-10: 10px; --lm-text-12: 12px; --lm-text-14: 14px; --lm-text-16: 16px;
+  --lm-text-22: 22px; --lm-text-24: 24px; --lm-text-28: 28px; --lm-text-32: 32px;
+  --lm-text-36: 36px; --lm-text-45: 45px; --lm-text-57: 57px;
+  /* Line heights: 16 · 20 · 25 · 28 · 32 · 36 · 40 · 44 · 52 · 64 */
+  --lm-leading-16: 16px; --lm-leading-20: 20px; --lm-leading-25: 25px; --lm-leading-28: 28px;
+  --lm-leading-32: 32px; --lm-leading-36: 36px; --lm-leading-40: 40px; --lm-leading-44: 44px;
+  --lm-leading-52: 52px; --lm-leading-64: 64px;
+  /* Tracking: -0.25 · 0 · 0.1 · 0.15 · 0.25 · 0.4 · 0.5 */
+  --lm-tracking-tight: -0.25px; --lm-tracking-0: 0px; --lm-tracking-10: 0.1px;
+  --lm-tracking-20: 0.15px; --lm-tracking-30: 0.25px; --lm-tracking-40: 0.4px; --lm-tracking-50: 0.5px;
+
+  /* ── Radius (px) ──────────────────────────────────────────── */
+  --lm-radius-0: 0px;
+  --lm-radius-xs: 2px;   /* checkbox box */
+  --lm-radius-sm: 4px;   /* fields, banners */
+  --lm-radius-md: 8px;   /* tags, cards, panels */
+  --lm-radius-lg: 12px;  /* list containers */
+  --lm-radius-xl: 16px;
+  --lm-radius-20: 20px;
+  --lm-radius-2xl: 28px; /* the query composer */
+  --lm-radius-32: 32px;
+  --lm-radius-48: 48px;
+  --lm-radius-full: 1000px;
+
+  /* ── Spacing (px) ─────────────────────────────────────────── */
+  --lm-space-0: 0px;
+  --lm-space-1: 4px;
+  --lm-space-2: 8px;
+  --lm-space-3: 12px;
+  --lm-space-4: 16px;
+  --lm-space-6: 24px;
+  --lm-space-8: 32px;
+  --lm-space-10: 40px;
+  --lm-space-12: 48px;
+  --lm-space-14: 56px;
+  --lm-space-16: 64px;
+  --lm-space-18: 72px;
+  --lm-space-20: 80px;
+  --lm-space-22: 88px;
+  --lm-space-24: 96px;
+
+  /* ── Elevation ────────────────────────────────────────────── */
+  --lm-elev-1: 0px 1px 2px 0px rgba(0,0,0,0.3), 0px 1px 3px 1px rgba(0,0,0,0.15);
+  --lm-elev-2: 0px 4px 16px 0px rgba(0,0,0,0.1);
+
+  /* ── Motion ───────────────────────────────────────────────── */
+  --lm-ease-standard: cubic-bezier(0.2, 0, 0, 1); /* @kind other */
+  --lm-duration-short: 100ms; /* @kind other */
+  --lm-duration-medium: 200ms; /* @kind other */
+}

@@ -1,0 +1,5 @@
+/* Leadmind uses Roboto everywhere (Regular 400 / Medium 500 / Bold 700).
+   Inter appears only in a handful of documentation labels inside the source file.
+   No font binaries ship with the Figma source, so both families are pulled from
+   Google Fonts — swap these for licensed local files if CAF hosts its own. */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Inter:wght@400;700&display=swap');

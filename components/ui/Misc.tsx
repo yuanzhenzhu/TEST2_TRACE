@@ -139,7 +139,7 @@ export function MatTabs({
             border: 'none',
             borderBottom: i === selected ? '2px solid #2B1C74' : '2px solid transparent',
             background: 'transparent',
-            color: i === selected ? '#2B1C74' : '#474554',
+            color: i === selected ? '#18171C' : '#474554',
             fontWeight: 500,
             fontSize: 14,
             letterSpacing: '0.1px',
@@ -465,7 +465,7 @@ export function PiecesNavlistItemNested({
         padding: `8px 12px 8px ${12 + depth * 20}px`,
         boxSizing: 'border-box',
         cursor: 'pointer',
-        background: state === 'Selected' ? '#E5E3EC' : 'transparent',
+        background: state === 'Selected' ? '#DFDAF6' : 'transparent',
       }}
       onMouseEnter={(e) => {
         if (state !== 'Selected') e.currentTarget.style.background = '#F4F3FA';

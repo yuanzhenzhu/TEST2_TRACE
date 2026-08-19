@@ -83,7 +83,17 @@ export function MatButtonFilled({
   );
 }
 
-export function MatButtonText({ label, onClick, style }: { label: string; onClick?: () => void; style?: CSSProperties }) {
+export function MatButtonText({
+  label,
+  icon,
+  onClick,
+  style,
+}: {
+  label: string;
+  icon?: string;
+  onClick?: () => void;
+  style?: CSSProperties;
+}) {
   return (
     <button
       type="button"
@@ -96,6 +106,43 @@ export function MatButtonText({ label, onClick, style }: { label: string; onClic
         ...style,
       }}
     >
+      {icon && <Icon name={icon} size={18} />}
+      {label}
+    </button>
+  );
+}
+
+export function MatButtonOutlined({
+  label,
+  icon,
+  onClick,
+  disabled,
+  style,
+}: {
+  label: string;
+  icon?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  style?: CSSProperties;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        ...base,
+        height: 32,
+        padding: '0 16px',
+        gap: 4,
+        background: 'transparent',
+        border: '1px solid #77728D',
+        color: disabled ? '#B7B4C2' : '#77728D',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        ...style,
+      }}
+    >
+      {icon && <Icon name={icon} size={18} />}
       {label}
     </button>
   );

@@ -9,6 +9,7 @@ export interface TreeNode {
   tipo: Tipo;
   depth: number;
   km: string;
+  unidadCode?: string;
   cocheCode?: string;
   bogieCode?: string;
   ejeCode?: string;
@@ -17,24 +18,45 @@ export interface TreeNode {
   children?: TreeNode[];
 }
 
-const U3220_KM = '122.885km';
-const U3230_KM = '117.930km';
+const U3220_KM = '125.668km';
+const U3230_KM = '120.670km';
 
-const pad = (n: number) => String(n).padStart(3, '0');
+const pad = (n: number, len = 3) => String(n).padStart(len, '0');
 
-function coche(n: number, i: number): TreeNode {
+// Deterministic bijective shuffle (x -> x*mult mod m, gcd(mult,m)=1) so distinct
+// inputs always produce distinct "random-looking" outputs \u2014 no collisions.
+function shuffle(x: number, mod: number, mult: number): number {
+  return (x * mult) % mod;
+}
+
+interface CocheOpts {
+  unidadCode: string;
+  km: string;
+  bogieSeqOffset: number;
+  ejeBase: number;
+  ejeRandom: boolean;
+  ruedaPrefix: string;
+  ruedaRandom: boolean;
+  reductoraPrefixes: [string, string];
+  reductoraRandom: boolean;
+}
+
+function coche(n: number, i: number, opts: CocheOpts): TreeNode {
+  const { unidadCode, km: unidadKm, bogieSeqOffset, ejeBase, ejeRandom, ruedaPrefix, ruedaRandom, reductoraPrefixes, reductoraRandom } = opts;
   return {
     id: 'c' + n,
     label: 'Coche ' + (i + 1),
     code: String(n),
     tipo: 'Coche',
     depth: 1,
-    km: U3220_KM,
+    km: unidadKm,
+    unidadCode,
     gmao: 'GMAO-' + n,
     tag: '\u2014',
     cocheCode: String(n),
     children: [1, 2].map((b) => {
-      const seq = i * 2 + b;
+      const localSeq = i * 2 + b; // 1..10, unique within this unidad
+      const seq = bogieSeqOffset + localSeq; // globally unique across unidades
       const bogieCode = '5149-MK6-' + pad(seq);
       return {
         id: 'c' + n + 'b' + b,
@@ -42,43 +64,51 @@ function coche(n: number, i: number): TreeNode {
         code: bogieCode,
         tipo: 'Bogie',
         depth: 2,
-        km: U3220_KM,
+        km: unidadKm,
+        unidadCode,
         gmao: 'GMAO-' + bogieCode,
         tag: 'TAG-' + bogieCode,
         cocheCode: String(n),
         bogieCode,
         children: [1, 2].map((e) => {
-          const idx = (seq - 1) * 2 + (e - 1);
-          const ejeCode = String(415875 + (seq - 1) * 2 + (2 - e));
+          const idx = (localSeq - 1) * 2 + (e - 1); // 0..19, unique within this unidad
+          const ejeNum = ejeRandom ? shuffle(idx, 10000, 6803) : idx;
+          const ejeCode = String(ejeBase + ejeNum);
           const child = (label: string, code: string, tipo: Tipo, k: string): TreeNode => ({
             id: 'c' + n + 'b' + b + 'e' + e + '-' + k,
             label,
             code,
             tipo,
             depth: 4,
-            km: U3220_KM,
+            km: unidadKm,
+            unidadCode,
             cocheCode: String(n),
             bogieCode,
             ejeCode,
             gmao: 'GMAO-' + code,
             tag: 'TAG-' + code,
           });
+          const r1 = ruedaRandom ? shuffle(idx * 2 + 1, 10000, 6803) : idx * 2 + 1;
+          const r2 = ruedaRandom ? shuffle(idx * 2 + 2, 10000, 6803) : idx * 2 + 2;
+          const d1 = reductoraRandom ? shuffle(idx * 2 + 1, 1000, 387) : idx * 2 + 1;
+          const d2 = reductoraRandom ? shuffle(idx * 2 + 2, 1000, 387) : idx * 2 + 2;
           return {
             id: 'c' + n + 'b' + b + 'e' + e,
             label: 'Eje ' + (idx + 1),
             code: ejeCode,
             tipo: 'Eje',
             depth: 3,
-            km: U3220_KM,
+            km: unidadKm,
+            unidadCode,
             cocheCode: String(n),
             bogieCode,
             gmao: 'GMAO-' + n + '-' + seq + '-' + e,
             tag: 'TAG-E' + pad(seq) + e,
             children: [
-              child('Rueda ' + (idx * 2 + 1), '082801-0025', 'Rueda', 'r1'),
-              child('Rueda ' + (idx * 2 + 2), '082801-0005r', 'Rueda', 'r2'),
-              child('Reductora ' + (idx * 2 + 1), '9427/B/001', 'Reductora', 'd1'),
-              child('Reductora ' + (idx * 2 + 2), '9427/A/004', 'Reductora', 'd2'),
+              child('Rueda ' + (idx * 2 + 1), ruedaPrefix + pad(r1, 4), 'Rueda', 'r1'),
+              child('Rueda ' + (idx * 2 + 2), ruedaPrefix + pad(r2, 4), 'Rueda', 'r2'),
+              child('Reductora ' + (idx * 2 + 1), reductoraPrefixes[0] + pad(d1), 'Reductora', 'd1'),
+              child('Reductora ' + (idx * 2 + 2), reductoraPrefixes[1] + pad(d2), 'Reductora', 'd2'),
             ],
           };
         }),
@@ -96,9 +126,43 @@ export const FLEETS: Record<string, TreeNode[]> = {
       tipo: 'Unidad',
       depth: 0,
       km: U3220_KM,
-      children: [3221, 3222, 3223, 3224, 3225].map((n, i) => coche(n, i)),
+      unidadCode: '3220',
+      children: [3221, 3222, 3223, 3224, 3225].map((n, i) =>
+        coche(n, i, {
+          unidadCode: '3220',
+          km: U3220_KM,
+          bogieSeqOffset: 0,
+          ejeBase: 415875,
+          ejeRandom: false,
+          ruedaPrefix: '082801-',
+          ruedaRandom: false,
+          reductoraPrefixes: ['9427/B/', '9427/A/'],
+          reductoraRandom: false,
+        })
+      ),
     },
-    { id: 'u3230', label: 'Unidad', code: '3230', tipo: 'Unidad', depth: 0, km: U3230_KM, children: [] },
+    {
+      id: 'u3230',
+      label: 'Unidad',
+      code: '3230',
+      tipo: 'Unidad',
+      depth: 0,
+      km: U3230_KM,
+      unidadCode: '3230',
+      children: [3231, 3232, 3233, 3234, 3235].map((n, i) =>
+        coche(n, i, {
+          unidadCode: '3230',
+          km: U3230_KM,
+          bogieSeqOffset: 10,
+          ejeBase: 700000,
+          ejeRandom: true,
+          ruedaPrefix: '082830-',
+          ruedaRandom: true,
+          reductoraPrefixes: ['9427/D/', '9427/C/'],
+          reductoraRandom: true,
+        })
+      ),
+    },
   ],
   'Zaragoza 3000': [],
 };
@@ -171,14 +235,198 @@ export const SING: Record<string, string> = {
   Reductoras: 'Reductora',
 };
 
+export interface AlmacenItem {
+  id: string;
+  label: string;
+  code: string;
+  km: string;
+  tipo: Tipo;
+  gmao: string;
+  tag: string;
+  conHijos: boolean;
+  conPadre: boolean;
+  groupLabel?: string;
+  groupCode?: string;
+  groupKm?: string;
+  children?: AlmacenItem[];
+}
+
+export interface Almacen {
+  code: string;
+  counts: Record<string, number>;
+  items: Record<string, AlmacenItem[]>;
+}
+
+interface AlmacenTipoConfig {
+  tipo: Tipo;
+  label: string;
+  count: number;
+  prefix: string;
+  digits: number;
+  mult: number;
+  seed: number;
+  kmBase: number;
+  hasChildren: boolean;
+}
+
+// Ejes are loose, individually serialized parts (no positional numbering): a fixed
+// per-index pattern gives the variety asked for — 2 with a padre bogie, 3 with hijo
+// ruedas/reductoras (one overlaps both), and one fully standalone.
+const EJE_PADRE = [true, true, false, false, false];
+const EJE_HIJO = [false, true, true, true, false];
+
+function buildAlmacenItems(
+  cfg: AlmacenTipoConfig,
+  bogiePrefix: string,
+  ruedaPrefix: string,
+  reductoraPrefix: string
+): AlmacenItem[] {
+  const items: AlmacenItem[] = [];
+  for (let i = 0; i < cfg.count; i++) {
+    const n = shuffle(i + cfg.seed, Math.pow(10, cfg.digits), cfg.mult);
+    const code = cfg.prefix + pad(n, cfg.digits);
+    const kmVal = fmtKm(cfg.kmBase + shuffle(i + cfg.seed, 50000, 6803));
+    const isEje = cfg.tipo === 'Eje';
+    const nested = isEje && EJE_PADRE[i % EJE_PADRE.length];
+    const hasOwnChildren = isEje && EJE_HIJO[i % EJE_HIJO.length];
+    const item: AlmacenItem = {
+      id: cfg.tipo + '-' + cfg.seed + '-' + i,
+      label: cfg.label,
+      code,
+      km: kmVal,
+      tipo: cfg.tipo,
+      gmao: 'GMAO-' + code,
+      tag: 'TAG-' + code,
+      conHijos: cfg.hasChildren || hasOwnChildren,
+      conPadre: nested,
+    };
+    if (nested) {
+      const groupN = shuffle(i + cfg.seed + 500, 1000, 387);
+      item.groupLabel = 'Bogie';
+      item.groupCode = bogiePrefix + pad(groupN, 3);
+      item.groupKm = kmVal;
+    }
+    if (hasOwnChildren) {
+      const ruedaN = shuffle(i + cfg.seed + 700, 10000, 6803);
+      const reductoraN = shuffle(i + cfg.seed + 800, 1000, 387);
+      const ruedaCode = ruedaPrefix + pad(ruedaN, 4);
+      const reductoraCode = reductoraPrefix + pad(reductoraN, 3);
+      item.children = [
+        {
+          id: item.id + '-rueda',
+          label: 'Rueda',
+          code: ruedaCode,
+          km: kmVal,
+          tipo: 'Rueda',
+          gmao: 'GMAO-' + ruedaCode,
+          tag: 'TAG-' + ruedaCode,
+          conHijos: false,
+          conPadre: true,
+        },
+        {
+          id: item.id + '-reductora',
+          label: 'Reductora',
+          code: reductoraCode,
+          km: kmVal,
+          tipo: 'Reductora',
+          gmao: 'GMAO-' + reductoraCode,
+          tag: 'TAG-' + reductoraCode,
+          conHijos: false,
+          conPadre: true,
+        },
+      ];
+    }
+    items.push(item);
+  }
+  return items;
+}
+
+function buildAlmacen(seedOffset: number, bogiePrefix: string, ruedaPrefix: string, reductoraPrefix: string): Almacen {
+  const configs: AlmacenTipoConfig[] = [
+    { tipo: 'Bogie', label: 'Bogie', count: 5, prefix: bogiePrefix, digits: 3, mult: 387, seed: seedOffset + 10, kmBase: 40000, hasChildren: true },
+    { tipo: 'Eje', label: 'Eje', count: 5, prefix: '', digits: 6, mult: 6803, seed: seedOffset + 900000, kmBase: 60000, hasChildren: false },
+    { tipo: 'Rueda', label: 'Rueda', count: 20, prefix: ruedaPrefix, digits: 4, mult: 6803, seed: seedOffset + 20, kmBase: 30000, hasChildren: false },
+    { tipo: 'Reductora', label: 'Reductora', count: 10, prefix: reductoraPrefix, digits: 3, mult: 387, seed: seedOffset + 30, kmBase: 20000, hasChildren: false },
+  ];
+  const items: Record<string, AlmacenItem[]> = {};
+  const counts: Record<string, number> = {};
+  configs.forEach((cfg) => {
+    items[cfg.tipo] = buildAlmacenItems(cfg, bogiePrefix, ruedaPrefix, reductoraPrefix);
+    counts[cfg.tipo] = cfg.count;
+  });
+  return { code: '', counts, items };
+}
+
+export const ALMACENES: Record<string, Almacen> = {
+  'Taller Stock Urbos 100': { ...buildAlmacen(0, '5149-WH-', '082850-', '9427/W/'), code: 'Taller Stock Urbos 100' },
+  'Taller Tranvía Zaragoza': { ...buildAlmacen(137, '5149-WZ-', '082860-', '9427/Z/'), code: 'Taller Tranvía Zaragoza' },
+};
+
+export const ALMACEN_TIPOS: { tipo: Tipo; label: string }[] = [
+  { tipo: 'Bogie', label: 'Bogie' },
+  { tipo: 'Eje', label: 'Eje' },
+  { tipo: 'Rueda', label: 'Rueda' },
+  { tipo: 'Reductora', label: 'Reductor' },
+];
+
+// Mock historial + related-movements rows for a loose warehouse item (self-contained, not tied to FLEETS).
+export function almacenHistorial(item: AlmacenItem): { id: string; cells: Cell[] }[] {
+  const [k1, k2, k3] = splitKm(item.km);
+  return [
+    { id: 'h1', cells: [id('3220'), id('3221'), id('5149-MK6-001'), txt('2025-06-10'), bool(), km(k1)] },
+    { id: 'h2', cells: [id('3220'), id('3225'), id('5149-MK6-009'), txt('2024-06-10'), txt('2025-07-10'), km(k2)] },
+    { id: 'h3', cells: [id('3220'), id('3223'), id('5149-MK6-005'), txt('2023-06-10'), txt('2025-07-11'), km(k3)] },
+  ];
+}
+
+export function toKmNumber(kmStr: string): number {
+  return parseInt(kmStr.replace(/[^\d]/g, ''), 10) || 0;
+}
+
+export function fmtKm(n: number): string {
+  return n.toLocaleString('es-ES') + 'km';
+}
+
+// Splits a total km into 3 partial ("Driver parcial") stints that add up exactly to the total.
+export function splitKm(kmStr: string): [string, string, string] {
+  const total = toKmNumber(kmStr);
+  const k1 = Math.round(total * 0.55);
+  const k2 = Math.round(total * 0.3);
+  const k3 = total - k1 - k2;
+  return [fmtKm(k1), fmtKm(k2), fmtKm(k3)];
+}
+
+function findUnidad(unidadCode: string): TreeNode | null {
+  for (const fleet of Object.values(FLEETS)) {
+    for (const u of fleet) {
+      if (u.code === unidadCode) return u;
+    }
+  }
+  return null;
+}
+
+// Picks two other coche/bogie references from the same unidad, for the mock "previously mounted on" rows.
+function altMounts(unidadCode: string, currentCocheCode: string): { coche: string; bogie: string }[] {
+  const coches = findUnidad(unidadCode)?.children || [];
+  const others = coches.filter((cc) => cc.code !== currentCocheCode);
+  const pick = (i: number) => others[i % Math.max(others.length, 1)] || coches[0];
+  const a = pick(others.length - 1);
+  const b = pick(others.length - 2);
+  return [
+    { coche: a?.code || currentCocheCode, bogie: a?.children?.[0]?.code || '' },
+    { coche: b?.code || currentCocheCode, bogie: b?.children?.[0]?.code || '' },
+  ];
+}
+
 export function historial(sel: TreeNode | null): { id: string; cells: Cell[] }[] {
+  const unidadCode = sel?.unidadCode || '3220';
   const c = sel?.cocheCode || '3221';
   const b = sel?.bogieCode || '5149-MK6-001';
   const k = sel?.km || U3220_KM;
   const anc = ANCESTORS[(sel?.tipo as Tipo) || 'Eje'] || [];
   if (anc.length < 3) {
     const pre: Record<string, Cell> = {
-      Unidad: id('3220'),
+      Unidad: id(unidadCode),
       Coche: id(c),
       Bogie: id(b),
       Eje: id(sel?.ejeCode || '415876'),
@@ -188,13 +436,134 @@ export function historial(sel: TreeNode | null): { id: string; cells: Cell[] }[]
   }
   const e = sel?.ejeCode || '415876';
   const lead = (cc: string, bb: string, ee: string) =>
-    anc.map((t) => id(({ Unidad: '3220', Coche: cc, Bogie: bb, Eje: ee } as Record<string, string>)[t]));
+    anc.map((t) => id(({ Unidad: unidadCode, Coche: cc, Bogie: bb, Eje: ee } as Record<string, string>)[t]));
+  const [alt1, alt2] = altMounts(unidadCode, c);
+  const [k1, k2, k3] = splitKm(k);
   return [
-    { id: 'h1', cells: lead(c, b, e).concat([txt('2025-06-10'), bool(), km(k)]) },
-    { id: 'h2', cells: lead('3225', '5149-MK6-009', e).concat([txt('2024-06-10'), txt('2025-07-10'), km(k)]) },
-    { id: 'h3', cells: lead('3223', '5149-MK6-005', e).concat([txt('2023-06-10'), txt('2025-07-11'), km(k)]) },
+    { id: 'h1', cells: lead(c, b, e).concat([txt('2025-06-10'), bool(), km(k1)]) },
+    { id: 'h2', cells: lead(alt1.coche, alt1.bogie, e).concat([txt('2024-06-10'), txt('2025-07-10'), km(k2)]) },
+    { id: 'h3', cells: lead(alt2.coche, alt2.bogie, e).concat([txt('2023-06-10'), txt('2025-07-11'), km(k3)]) },
   ];
 }
+
+export interface PositionRef {
+  title: string;
+  code: string;
+}
+
+export interface MovimientoRow {
+  id: string;
+  fecha: string;
+  operacion: string;
+  operacionIcons: string[];
+  componente: string;
+  antes: PositionRef[];
+  despues: PositionRef[];
+}
+
+const MOVIMIENTOS_BASE: Omit<MovimientoRow, 'id'>[] = [
+  {
+    fecha: '20-08-2026 14:24:12',
+    operacion: 'Intercambio entre unidades',
+    operacionIcons: ['Train', 'SwapHoriz', 'Train'],
+    componente: 'Ventilador',
+    antes: [
+      { title: '30801', code: 'SECH222000099033' },
+      { title: '30820', code: 'SECH2228888815475' },
+    ],
+    despues: [
+      { title: '30801', code: 'SECH2228888815475' },
+      { title: '30820', code: 'SECH222000099033' },
+    ],
+  },
+  {
+    fecha: '20-08-2026 14:24:12',
+    operacion: 'Intercambio entre almacén y taller',
+    operacionIcons: ['Train', 'SwapHoriz', 'Warehouse'],
+    componente: 'Eje',
+    antes: [
+      { title: '30801', code: 'SECH222000099033' },
+      { title: 'Taller Stock Urbos 100', code: 'SECH2228888815475' },
+    ],
+    despues: [
+      { title: '30801', code: 'SECH2228888815475' },
+      { title: 'Taller Stock Urbos 100', code: 'SECH222000099033' },
+    ],
+  },
+  {
+    fecha: '20-08-2026 14:24:12',
+    operacion: 'Intercambio dentro de la misma unidad',
+    operacionIcons: ['Train', 'Cycle'],
+    componente: 'Rueda',
+    antes: [
+      { title: '30801 - Eje 1', code: 'SECH222000099033' },
+      { title: '30801 - Eje 2', code: 'SECH2228888815475' },
+    ],
+    despues: [
+      { title: '30801 - Eje 1', code: 'SECH2228888815475' },
+      { title: '30801 - Eje 2', code: 'SECH222000099033' },
+    ],
+  },
+  {
+    fecha: '20-08-2026 14:24:12',
+    operacion: 'Envio entre talleres',
+    operacionIcons: ['Warehouse', 'MoveRight', 'Warehouse'],
+    componente: 'Patín captación',
+    antes: [
+      { title: 'Taller Stock Urbos 100', code: 'SECH222000099033' },
+      { title: 'Taller 2', code: 'Vacio' },
+    ],
+    despues: [
+      { title: 'Taller Stock Urbos 100', code: 'Vacio' },
+      { title: 'Taller 2', code: 'SECH222000099033' },
+    ],
+  },
+  {
+    fecha: '20-08-2026 14:24:12',
+    operacion: 'Montaje en taller',
+    operacionIcons: ['AssemblyOn'],
+    componente: 'Compresor',
+    antes: [
+      { title: 'Taller Stock Urbos 100', code: 'SECH222000099033' },
+      { title: '30820', code: 'Vacio' },
+    ],
+    despues: [
+      { title: 'Taller Stock Urbos 100', code: 'Vacio' },
+      { title: '30820', code: 'SECH222000099033' },
+    ],
+  },
+  {
+    fecha: '20-08-2026 14:24:12',
+    operacion: 'Desmontaje en taller',
+    operacionIcons: ['AssemblyOff'],
+    componente: 'Motor ventilador condensadora HVAC Sala',
+    antes: [
+      { title: 'Taller Stock Urbos 100', code: 'Vacio' },
+      { title: '30820', code: 'SECH222000099033' },
+    ],
+    despues: [
+      { title: 'Taller Stock Urbos 100', code: 'SECH222000099033' },
+      { title: '30820', code: 'Vacio' },
+    ],
+  },
+  {
+    fecha: '20-08-2026 14:24:12',
+    operacion: 'Fin de vida',
+    operacionIcons: ['Block'],
+    componente: 'Eje',
+    antes: [{ title: 'Taller Stock Urbos 100', code: 'SECH222000099033' }],
+    despues: [{ title: '2. Fin de vida componente', code: 'SECH222000099033' }],
+  },
+];
+
+export const MOVIMIENTOS: MovimientoRow[] = [0, 1].flatMap((rep) =>
+  MOVIMIENTOS_BASE.map((row, i) => ({ ...row, id: 'mov-' + rep + '-' + i }))
+);
+// Fila 9 (índice 8): fecha ajustada manualmente.
+MOVIMIENTOS[8] = { ...MOVIMIENTOS[8], fecha: '05-08-2026 08:00:00' };
+
+export const TIPOS_COMPONENTE = ['Eje', 'Rueda', 'Reductora', 'Ventilador', 'Compresor', 'Patín captación'];
+export const TIPOS_OPERACION = MOVIMIENTOS_BASE.map((r) => r.operacion);
 
 export function hijoRows(sel: TreeNode | null, tipo: string): { id: string; cells: Cell[] }[] {
   const SETS: Record<string, string[]> = {
@@ -210,7 +579,7 @@ export function hijoRows(sel: TreeNode | null, tipo: string): { id: string; cell
   if (real[1]) ids[1] = real[1].code;
   const k = sel?.km || U3220_KM;
   if (tipo === 'Coches') {
-    const coches = ['3221', '3222', '3223', '3224', '3225'];
+    const coches = (sel?.children || []).map((cc) => cc.code);
     const pairs: Cell[] = [];
     coches.forEach((c) => {
       pairs.push(id(c, W_ID));

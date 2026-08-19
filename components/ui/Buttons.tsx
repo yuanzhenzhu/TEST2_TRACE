@@ -152,10 +152,12 @@ export function MatButtonIcon({
   icon,
   onClick,
   title,
+  style,
 }: {
   icon: string;
   onClick?: () => void;
   title?: string;
+  style?: CSSProperties;
 }) {
   return (
     <button
@@ -174,6 +176,7 @@ export function MatButtonIcon({
         alignItems: 'center',
         justifyContent: 'center',
         cursor: 'pointer',
+        ...style,
       }}
     >
       <Icon name={icon} size={20} />

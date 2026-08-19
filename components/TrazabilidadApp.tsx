@@ -74,7 +74,7 @@ interface AppState {
   almacen: string;
   dAlmacen: string;
   almacenApplied: boolean;
-  almacenTipo: string | null;
+  almacenExpandedTipos: Record<string, boolean>;
   almacenCheckedIds: Record<string, boolean>;
   almacenSelectedId: string | null;
   almacenFilterOpen: boolean;
@@ -112,7 +112,7 @@ const initialState: AppState = {
   almacen: 'Taller Stock Urbos 100',
   dAlmacen: '',
   almacenApplied: false,
-  almacenTipo: null,
+  almacenExpandedTipos: {},
   almacenCheckedIds: {},
   almacenSelectedId: null,
   almacenFilterOpen: false,
@@ -546,11 +546,24 @@ function DetailTreeRow({ row }: { row: DetailRow }) {
   );
 }
 
-function SlideToggle({ checked, onChange, label }: { checked: boolean; onChange: () => void; label: string }) {
+function SlideToggle({
+  checked,
+  onChange,
+  label,
+  locked,
+  lockedTitle,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+  locked?: boolean;
+  lockedTitle?: string;
+}) {
   return (
     <div
       onClick={onChange}
-      style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12, cursor: 'pointer' }}
+      title={locked ? lockedTitle : undefined}
+      style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.6 : 1 }}
     >
       <span
         style={{
@@ -742,17 +755,19 @@ export default function TrazabilidadApp() {
 
   const isAlmacen = s.screen === 'almacen';
   const almacenData = ALMACENES[s.almacen];
-  const almacenItemsAll: AlmacenItem[] = (s.almacenTipo && almacenData.items[s.almacenTipo]) || [];
-  const almacenItems = almacenItemsAll.filter((it) => {
+  const almacenFilterFn = (it: AlmacenItem) => {
     const f = s.almacenFilter;
     const hijosOk = it.conHijos ? f.conHijos : f.sinHijos;
     const padreOk = it.conPadre ? f.conPadre : f.sinPadre;
     return hijosOk && padreOk;
-  });
-  const almacenCheckedItems = almacenItemsAll.filter((it) => s.almacenCheckedIds[it.id]);
+  };
+  const almacenAllFlat: AlmacenItem[] = ALMACEN_TIPOS.flatMap((t) => almacenData.items[t.tipo] || []);
+  const almacenCheckedItems = almacenAllFlat.filter((it) => s.almacenCheckedIds[it.id]);
   const almacenMulti = almacenCheckedItems.length > 1;
-  const almacenSel = !almacenMulti && s.almacenSelectedId ? almacenItemsAll.find((it) => it.id === s.almacenSelectedId) || null : null;
-  const almacenAllChecked = almacenItems.length > 0 && almacenItems.every((it) => s.almacenCheckedIds[it.id]);
+  const almacenSel = !almacenMulti && s.almacenSelectedId ? almacenAllFlat.find((it) => it.id === s.almacenSelectedId) || null : null;
+  const almacenAllExpanded = ALMACEN_TIPOS.every((t) => s.almacenExpandedTipos[t.tipo]);
+  const almacenFilterActive =
+    !s.almacenFilter.conHijos || !s.almacenFilter.sinHijos || !s.almacenFilter.conPadre || !s.almacenFilter.sinPadre;
 
   const flatten = (): TreeNode[] => {
     const out: TreeNode[] = [];
@@ -1183,7 +1198,7 @@ export default function TrazabilidadApp() {
                           screen: 'almacen',
                           dAlmacen: '',
                           almacenApplied: false,
-                          almacenTipo: null,
+                          almacenExpandedTipos: {},
                           almacenCheckedIds: {},
                           almacenSelectedId: null,
                         })
@@ -2198,7 +2213,7 @@ export default function TrazabilidadApp() {
                 patch((prev) => ({
                   almacenApplied: true,
                   almacen: prev.dAlmacen || prev.almacen,
-                  almacenTipo: null,
+                  almacenExpandedTipos: {},
                   almacenCheckedIds: {},
                   almacenSelectedId: null,
                   tab: 0,
@@ -2225,26 +2240,10 @@ export default function TrazabilidadApp() {
                   <EmptyState icon="List" text="Elige un almacén y pulsa Aplicar" width="100%" height={168} />
                 )}
 
-                {s.almacenApplied && !s.almacenTipo && (
+                {s.almacenApplied && (
                   <>
-                    {ALMACEN_TIPOS.map((t) => (
-                      <div
-                        key={t.tipo}
-                        onClick={() => patch({ almacenTipo: t.tipo })}
-                        style={{
-                          display: 'flex',
-                          flexDirection: 'row',
-                          alignItems: 'center',
-                          justifyContent: 'space-between',
-                          minHeight: 40,
-                          padding: '8px',
-                          borderRadius: 8,
-                          cursor: 'pointer',
-                        }}
-                        onMouseEnter={(e) => (e.currentTarget.style.background = '#F4F3FA')}
-                        onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-                      >
-                        <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{t.label}</span>
+                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                      {almacenFilterActive ? (
                         <span
                           style={{
                             display: 'inline-flex',
@@ -2252,150 +2251,216 @@ export default function TrazabilidadApp() {
                             height: 24,
                             padding: '0 12px',
                             borderRadius: 8,
-                            background: '#F9F9FB',
-                            color: '#18171C',
+                            background: '#DFDAF6',
+                            color: '#170F3E',
                             fontSize: 12,
                             fontWeight: 500,
                             lineHeight: '16px',
                             letterSpacing: '0.4px',
+                            whiteSpace: 'nowrap',
                           }}
                         >
-                          {almacenData.counts[t.tipo] || 0}
+                          Resultados filtrados
                         </span>
-                      </div>
-                    ))}
-                  </>
-                )}
-
-                {s.almacenApplied && s.almacenTipo && (
-                  <>
-                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                      <Breadcrumb
-                        items={['Todos los activos', s.almacenTipo + 's']}
-                        showBack
-                        onBack={() => patch({ almacenTipo: null, almacenCheckedIds: {}, almacenSelectedId: null })}
-                      />
+                      ) : (
+                        <span />
+                      )}
                       <div style={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
-                        <MatButtonIcon icon="UnfoldLess" title="Colapsar todo" />
-                        <MatButtonIcon icon="Filter" title="Filtros" onClick={() => patch({ almacenFilterOpen: true })} />
+                        <MatButtonIcon
+                          icon="UnfoldLess"
+                          title={almacenAllExpanded ? 'Colapsar todo' : 'Expandir todo'}
+                          onClick={() =>
+                            patch(() => {
+                              const next: Record<string, boolean> = {};
+                              if (!almacenAllExpanded) ALMACEN_TIPOS.forEach((t) => (next[t.tipo] = true));
+                              return { almacenExpandedTipos: next };
+                            })
+                          }
+                        />
+                        <MatButtonIcon
+                          icon="Filter"
+                          title="Filtros"
+                          onClick={() => patch({ almacenFilterOpen: true })}
+                          style={almacenFilterActive ? { color: '#2B1C74' } : undefined}
+                        />
                       </div>
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, padding: '8px 0' }}>
-                      <MatCheckbox
-                        checked={almacenAllChecked}
-                        onChange={() =>
-                          patch((prev) => {
-                            const next = { ...prev.almacenCheckedIds };
-                            if (almacenAllChecked) almacenItems.forEach((it) => delete next[it.id]);
-                            else almacenItems.forEach((it) => (next[it.id] = true));
-                            return { almacenCheckedIds: next, almacenSelectedId: null };
-                          })
-                        }
-                      />
-                      <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>
-                        Todos ({almacenItems.length} {s.almacenTipo.toLowerCase()}
-                        {almacenItems.length === 1 ? '' : 's'})
-                      </span>
                     </div>
                     <MatDividerHorizontal />
-                    <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 600, overflowY: 'auto' }}>
-                      {almacenItems.map((it) => (
-                        <div key={it.id}>
-                          <div
-                            style={{
-                              display: 'flex',
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              gap: 8,
-                              padding: '8px',
-                              minHeight: 40,
-                              borderRadius: 8,
-                              cursor: 'pointer',
-                              background: s.almacenSelectedId === it.id ? '#DFDAF6' : 'transparent',
-                            }}
-                            onClick={() => patch({ almacenSelectedId: it.id, tab: 0 })}
-                            onMouseEnter={(e) => {
-                              if (s.almacenSelectedId !== it.id) e.currentTarget.style.background = '#F4F3FA';
-                            }}
-                            onMouseLeave={(e) => {
-                              if (s.almacenSelectedId !== it.id) e.currentTarget.style.background = 'transparent';
-                            }}
-                          >
-                            {it.conHijos && it.children ? (
-                              <span
-                                style={{ color: '#18171C', display: 'flex', cursor: 'pointer', flexShrink: 0 }}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  patch((prev) => ({ almacenExpandedIds: { ...prev.almacenExpandedIds, [it.id]: !prev.almacenExpandedIds[it.id] } }));
-                                }}
-                              >
-                                <Icon name={s.almacenExpandedIds[it.id] ? 'ExpandMore' : 'ChevronRight'} size={20} />
-                              </span>
-                            ) : (
-                              <span style={{ width: 20, flexShrink: 0 }} />
-                            )}
-                            <MatCheckbox
-                              checked={!!s.almacenCheckedIds[it.id]}
-                              onChange={() =>
-                                patch((prev) => {
-                                  const next = { ...prev.almacenCheckedIds };
-                                  if (next[it.id]) delete next[it.id];
-                                  else next[it.id] = true;
-                                  return { almacenCheckedIds: next, almacenSelectedId: null };
-                                })
+
+                    <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 680, overflowY: 'auto' }}>
+                      {ALMACEN_TIPOS.map((t) => {
+                        const expanded = !!s.almacenExpandedTipos[t.tipo];
+                        const rawItems = almacenData.items[t.tipo] || [];
+                        const filteredItems = rawItems.filter(almacenFilterFn);
+                        const allCheckedInTipo = filteredItems.length > 0 && filteredItems.every((it) => s.almacenCheckedIds[it.id]);
+                        return (
+                          <div key={t.tipo}>
+                            <div
+                              onClick={() =>
+                                patch((prev) => ({ almacenExpandedTipos: { ...prev.almacenExpandedTipos, [t.tipo]: !prev.almacenExpandedTipos[t.tipo] } }))
                               }
-                            />
-                            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                              <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{it.label}</span>
-                              <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{it.code}</span>
-                            </span>
-                            {it.groupLabel && (
+                              style={{
+                                display: 'flex',
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 8,
+                                minHeight: 40,
+                                padding: '8px',
+                                borderRadius: 8,
+                                cursor: 'pointer',
+                              }}
+                              onMouseEnter={(e) => (e.currentTarget.style.background = '#F4F3FA')}
+                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                            >
+                              <span style={{ color: '#18171C', display: 'flex', flexShrink: 0 }}>
+                                <Icon name={expanded ? 'ExpandMore' : 'ChevronRight'} size={20} />
+                              </span>
+                              <span style={{ flex: 1, fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{t.label}</span>
                               <span
+                                title={almacenFilterActive ? `Filtrado: ${filteredItems.length} de ${almacenData.counts[t.tipo] || 0}` : undefined}
                                 style={{
                                   display: 'inline-flex',
                                   alignItems: 'center',
                                   height: 24,
-                                  padding: '0 10px',
+                                  padding: '0 12px',
                                   borderRadius: 8,
-                                  background: '#F0F0F4',
-                                  color: '#77728D',
+                                  background: almacenFilterActive ? '#DFDAF6' : '#F9F9FB',
+                                  color: almacenFilterActive ? '#170F3E' : '#18171C',
                                   fontSize: 12,
+                                  fontWeight: 500,
+                                  lineHeight: '16px',
                                   letterSpacing: '0.4px',
-                                  whiteSpace: 'nowrap',
-                                  flexShrink: 0,
                                 }}
-                                title={it.groupCode}
                               >
-                                {it.groupLabel} padre
+                                {filteredItems.length}
+                                {almacenFilterActive ? ` / ${almacenData.counts[t.tipo] || 0}` : ''}
                               </span>
-                            )}
-                            <TagSemanticStatus status="Info" label={it.km} />
-                          </div>
-                          {it.conHijos && it.children && s.almacenExpandedIds[it.id] && (
-                            <div style={{ display: 'flex', flexDirection: 'column', opacity: 0.4 }}>
-                              {it.children.map((child) => (
-                                <div
-                                  key={child.id}
-                                  style={{
-                                    display: 'flex',
-                                    flexDirection: 'row',
-                                    alignItems: 'center',
-                                    gap: 8,
-                                    padding: '8px 8px 8px 56px',
-                                    minHeight: 40,
-                                  }}
-                                >
-                                  <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                                    <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{child.label}</span>
-                                    <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{child.code}</span>
-                                  </span>
-                                  <TagSemanticStatus status="Info" label={child.km} />
-                                </div>
-                              ))}
                             </div>
-                          )}
-                        </div>
-                      ))}
+
+                            {expanded && (
+                              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, padding: '8px 8px 8px 28px' }}>
+                                  <span style={{ width: 20, flexShrink: 0 }} />
+                                  <MatCheckbox
+                                    checked={allCheckedInTipo}
+                                    onChange={() =>
+                                      patch((prev) => {
+                                        const next = { ...prev.almacenCheckedIds };
+                                        if (allCheckedInTipo) filteredItems.forEach((it) => delete next[it.id]);
+                                        else filteredItems.forEach((it) => (next[it.id] = true));
+                                        return { almacenCheckedIds: next, almacenSelectedId: null };
+                                      })
+                                    }
+                                  />
+                                  <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>
+                                    Todos ({filteredItems.length} {t.plural})
+                                  </span>
+                                </div>
+                                <MatDividerHorizontal />
+                                {filteredItems.map((it) => (
+                                  <div key={it.id}>
+                                    {it.groupLabel && (
+                                      <div
+                                        style={{
+                                          display: 'flex',
+                                          flexDirection: 'row',
+                                          alignItems: 'center',
+                                          gap: 8,
+                                          padding: '8px 8px 8px 28px',
+                                          minHeight: 40,
+                                          opacity: 0.4,
+                                        }}
+                                      >
+                                        <span style={{ color: '#18171C', display: 'flex', flexShrink: 0 }}>
+                                          <Icon name="ExpandMore" size={20} />
+                                        </span>
+                                        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                                          <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{it.groupLabel}</span>
+                                          <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{it.groupCode}</span>
+                                        </span>
+                                        <TagSemanticStatus status="Info" label={it.groupKm || it.km} />
+                                      </div>
+                                    )}
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        padding: '8px 8px 8px 28px',
+                                        minHeight: 40,
+                                        borderRadius: 8,
+                                        cursor: 'pointer',
+                                        background: s.almacenSelectedId === it.id ? '#DFDAF6' : 'transparent',
+                                      }}
+                                      onClick={() => patch({ almacenSelectedId: it.id, tab: 0 })}
+                                      onMouseEnter={(e) => {
+                                        if (s.almacenSelectedId !== it.id) e.currentTarget.style.background = '#F4F3FA';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        if (s.almacenSelectedId !== it.id) e.currentTarget.style.background = 'transparent';
+                                      }}
+                                    >
+                                      {it.conHijos && it.children ? (
+                                        <span
+                                          style={{ color: '#18171C', display: 'flex', cursor: 'pointer', flexShrink: 0 }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            patch((prev) => ({ almacenExpandedIds: { ...prev.almacenExpandedIds, [it.id]: !prev.almacenExpandedIds[it.id] } }));
+                                          }}
+                                        >
+                                          <Icon name={s.almacenExpandedIds[it.id] ? 'ExpandMore' : 'ChevronRight'} size={20} />
+                                        </span>
+                                      ) : (
+                                        <span style={{ width: 20, flexShrink: 0 }} />
+                                      )}
+                                      <MatCheckbox
+                                        checked={!!s.almacenCheckedIds[it.id]}
+                                        onChange={() =>
+                                          patch((prev) => {
+                                            const next = { ...prev.almacenCheckedIds };
+                                            if (next[it.id]) delete next[it.id];
+                                            else next[it.id] = true;
+                                            return { almacenCheckedIds: next, almacenSelectedId: null };
+                                          })
+                                        }
+                                      />
+                                      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{it.label}</span>
+                                        <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{it.code}</span>
+                                      </span>
+                                      <TagSemanticStatus status="Info" label={it.km} />
+                                    </div>
+                                    {it.conHijos && it.children && s.almacenExpandedIds[it.id] && (
+                                      <div style={{ display: 'flex', flexDirection: 'column', opacity: 0.4 }}>
+                                        {it.children.map((child) => (
+                                          <div
+                                            key={child.id}
+                                            style={{
+                                              display: 'flex',
+                                              flexDirection: 'row',
+                                              alignItems: 'center',
+                                              gap: 8,
+                                              padding: '8px 8px 8px 76px',
+                                              minHeight: 40,
+                                            }}
+                                          >
+                                            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                                              <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{child.label}</span>
+                                              <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{child.code}</span>
+                                            </span>
+                                            <TagSemanticStatus status="Info" label={child.km} />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </>
                 )}
@@ -2623,18 +2688,28 @@ export default function TrazabilidadApp() {
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {[
-                    { key: 'conHijos' as const, label: 'Activo con hijos' },
-                    { key: 'sinHijos' as const, label: 'Activo sin hijos' },
-                    { key: 'conPadre' as const, label: 'Activo con padre' },
-                    { key: 'sinPadre' as const, label: 'Activo sin padre' },
-                  ].map((f) => (
-                    <SlideToggle
-                      key={f.key}
-                      label={f.label}
-                      checked={s.almacenFilter[f.key]}
-                      onChange={() => patch((prev) => ({ almacenFilter: { ...prev.almacenFilter, [f.key]: !prev.almacenFilter[f.key] } }))}
-                    />
-                  ))}
+                    { key: 'conHijos' as const, pair: 'sinHijos' as const, label: 'Activo con hijos' },
+                    { key: 'sinHijos' as const, pair: 'conHijos' as const, label: 'Activo sin hijos' },
+                    { key: 'conPadre' as const, pair: 'sinPadre' as const, label: 'Activo con padre' },
+                    { key: 'sinPadre' as const, pair: 'conPadre' as const, label: 'Activo sin padre' },
+                  ].map((f) => {
+                    const isLastOn = s.almacenFilter[f.key] && !s.almacenFilter[f.pair];
+                    return (
+                      <SlideToggle
+                        key={f.key}
+                        label={f.label}
+                        checked={s.almacenFilter[f.key]}
+                        locked={isLastOn}
+                        lockedTitle="Debe quedar seleccionada al menos una de las dos opciones"
+                        onChange={() =>
+                          patch((prev) => {
+                            if (prev.almacenFilter[f.key] && !prev.almacenFilter[f.pair]) return {};
+                            return { almacenFilter: { ...prev.almacenFilter, [f.key]: !prev.almacenFilter[f.key] } };
+                          })
+                        }
+                      />
+                    );
+                  })}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'row', gap: 16, justifyContent: 'flex-end' }}>
                   <MatButtonOutlined label="Cancelar" onClick={() => patch({ almacenFilterOpen: false })} style={{ height: 40 }} />

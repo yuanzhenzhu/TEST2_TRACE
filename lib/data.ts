@@ -266,30 +266,23 @@ interface AlmacenTipoConfig {
   mult: number;
   seed: number;
   kmBase: number;
-  hasChildren: boolean;
 }
 
 // Ejes are loose, individually serialized parts (no positional numbering): a fixed
 // per-index pattern gives the variety asked for — 2 with a padre bogie, 3 with hijo
-// ruedas/reductoras (one overlaps both), and one fully standalone.
+// ruedas/reductoras (one overlaps both), and one fully standalone. These flags drive
+// REAL cross-references into the Bogie/Rueda/Reductora lists below (buildAlmacen),
+// so e.g. "2 ejes con padre" always means exactly 2 bogies show up marked "con hijos".
 const EJE_PADRE = [true, true, false, false, false];
 const EJE_HIJO = [false, true, true, true, false];
 
-function buildAlmacenItems(
-  cfg: AlmacenTipoConfig,
-  bogiePrefix: string,
-  ruedaPrefix: string,
-  reductoraPrefix: string
-): AlmacenItem[] {
+function buildBaseItems(cfg: AlmacenTipoConfig): AlmacenItem[] {
   const items: AlmacenItem[] = [];
   for (let i = 0; i < cfg.count; i++) {
     const n = shuffle(i + cfg.seed, Math.pow(10, cfg.digits), cfg.mult);
     const code = cfg.prefix + pad(n, cfg.digits);
     const kmVal = fmtKm(cfg.kmBase + shuffle(i + cfg.seed, 50000, 6803));
-    const isEje = cfg.tipo === 'Eje';
-    const nested = isEje && EJE_PADRE[i % EJE_PADRE.length];
-    const hasOwnChildren = isEje && EJE_HIJO[i % EJE_HIJO.length];
-    const item: AlmacenItem = {
+    items.push({
       id: cfg.tipo + '-' + cfg.seed + '-' + i,
       label: cfg.label,
       code,
@@ -297,63 +290,53 @@ function buildAlmacenItems(
       tipo: cfg.tipo,
       gmao: 'GMAO-' + code,
       tag: 'TAG-' + code,
-      conHijos: cfg.hasChildren || hasOwnChildren,
-      conPadre: nested,
-    };
-    if (nested) {
-      const groupN = shuffle(i + cfg.seed + 500, 1000, 387);
-      item.groupLabel = 'Bogie';
-      item.groupCode = bogiePrefix + pad(groupN, 3);
-      item.groupKm = kmVal;
-    }
-    if (hasOwnChildren) {
-      const ruedaN = shuffle(i + cfg.seed + 700, 10000, 6803);
-      const reductoraN = shuffle(i + cfg.seed + 800, 1000, 387);
-      const ruedaCode = ruedaPrefix + pad(ruedaN, 4);
-      const reductoraCode = reductoraPrefix + pad(reductoraN, 3);
-      item.children = [
-        {
-          id: item.id + '-rueda',
-          label: 'Rueda',
-          code: ruedaCode,
-          km: kmVal,
-          tipo: 'Rueda',
-          gmao: 'GMAO-' + ruedaCode,
-          tag: 'TAG-' + ruedaCode,
-          conHijos: false,
-          conPadre: true,
-        },
-        {
-          id: item.id + '-reductora',
-          label: 'Reductora',
-          code: reductoraCode,
-          km: kmVal,
-          tipo: 'Reductora',
-          gmao: 'GMAO-' + reductoraCode,
-          tag: 'TAG-' + reductoraCode,
-          conHijos: false,
-          conPadre: true,
-        },
-      ];
-    }
-    items.push(item);
+      conHijos: false,
+      conPadre: false,
+    });
   }
   return items;
 }
 
 function buildAlmacen(seedOffset: number, bogiePrefix: string, ruedaPrefix: string, reductoraPrefix: string): Almacen {
-  const configs: AlmacenTipoConfig[] = [
-    { tipo: 'Bogie', label: 'Bogie', count: 5, prefix: bogiePrefix, digits: 3, mult: 387, seed: seedOffset + 10, kmBase: 40000, hasChildren: true },
-    { tipo: 'Eje', label: 'Eje', count: 5, prefix: '', digits: 6, mult: 6803, seed: seedOffset + 900000, kmBase: 60000, hasChildren: false },
-    { tipo: 'Rueda', label: 'Rueda', count: 20, prefix: ruedaPrefix, digits: 4, mult: 6803, seed: seedOffset + 20, kmBase: 30000, hasChildren: false },
-    { tipo: 'Reductora', label: 'Reductora', count: 10, prefix: reductoraPrefix, digits: 3, mult: 387, seed: seedOffset + 30, kmBase: 20000, hasChildren: false },
-  ];
-  const items: Record<string, AlmacenItem[]> = {};
-  const counts: Record<string, number> = {};
-  configs.forEach((cfg) => {
-    items[cfg.tipo] = buildAlmacenItems(cfg, bogiePrefix, ruedaPrefix, reductoraPrefix);
-    counts[cfg.tipo] = cfg.count;
+  const bogies = buildBaseItems({ tipo: 'Bogie', label: 'Bogie', count: 5, prefix: bogiePrefix, digits: 3, mult: 387, seed: seedOffset + 10, kmBase: 40000 });
+  const ejes = buildBaseItems({ tipo: 'Eje', label: 'Eje', count: 5, prefix: '', digits: 6, mult: 6803, seed: seedOffset + 900000, kmBase: 60000 });
+  const ruedas = buildBaseItems({ tipo: 'Rueda', label: 'Rueda', count: 20, prefix: ruedaPrefix, digits: 4, mult: 6803, seed: seedOffset + 20, kmBase: 30000 });
+  const reductoras = buildBaseItems({ tipo: 'Reductora', label: 'Reductora', count: 10, prefix: reductoraPrefix, digits: 3, mult: 387, seed: seedOffset + 30, kmBase: 20000 });
+
+  // Wire "con padre" ejes to a real bogie (marks that bogie "con hijos" in its own list).
+  let bogieCursor = 0;
+  ejes.forEach((eje, i) => {
+    if (!EJE_PADRE[i]) return;
+    const bogie = bogies[bogieCursor++];
+    eje.conPadre = true;
+    eje.groupLabel = bogie.label;
+    eje.groupCode = bogie.code;
+    eje.groupKm = bogie.km;
+    bogie.conHijos = true;
+    bogie.children = (bogie.children || []).concat(eje);
   });
+
+  // Wire "con hijos" ejes to a real rueda + reductora (marks those "con padre" in their own lists).
+  let hijoCursor = 0;
+  ejes.forEach((eje, i) => {
+    if (!EJE_HIJO[i]) return;
+    const rueda = ruedas[hijoCursor];
+    const reductora = reductoras[hijoCursor];
+    hijoCursor++;
+    rueda.conPadre = true;
+    rueda.groupLabel = eje.label;
+    rueda.groupCode = eje.code;
+    rueda.groupKm = eje.km;
+    reductora.conPadre = true;
+    reductora.groupLabel = eje.label;
+    reductora.groupCode = eje.code;
+    reductora.groupKm = eje.km;
+    eje.conHijos = true;
+    eje.children = [rueda, reductora];
+  });
+
+  const items: Record<string, AlmacenItem[]> = { Bogie: bogies, Eje: ejes, Rueda: ruedas, Reductora: reductoras };
+  const counts: Record<string, number> = { Bogie: bogies.length, Eje: ejes.length, Rueda: ruedas.length, Reductora: reductoras.length };
   return { code: '', counts, items };
 }
 
@@ -362,11 +345,11 @@ export const ALMACENES: Record<string, Almacen> = {
   'Taller Tranvía Zaragoza': { ...buildAlmacen(137, '5149-WZ-', '082860-', '9427/Z/'), code: 'Taller Tranvía Zaragoza' },
 };
 
-export const ALMACEN_TIPOS: { tipo: Tipo; label: string }[] = [
-  { tipo: 'Bogie', label: 'Bogie' },
-  { tipo: 'Eje', label: 'Eje' },
-  { tipo: 'Rueda', label: 'Rueda' },
-  { tipo: 'Reductora', label: 'Reductor' },
+export const ALMACEN_TIPOS: { tipo: Tipo; label: string; plural: string }[] = [
+  { tipo: 'Bogie', label: 'Bogie', plural: 'bogies' },
+  { tipo: 'Eje', label: 'Eje', plural: 'ejes' },
+  { tipo: 'Rueda', label: 'Rueda', plural: 'ruedas' },
+  { tipo: 'Reductora', label: 'Reductor', plural: 'reductores' },
 ];
 
 // Mock historial + related-movements rows for a loose warehouse item (self-contained, not tied to FLEETS).

@@ -41,11 +41,43 @@ export function MatButtonTonal({
       style={{
         ...base,
         background: disabled ? '#E5E3EC' : '#DFDAF6',
-        color: disabled ? '#8C899C' : '#1E1452',
+        color: disabled ? '#8C899C' : '#170F3E',
         cursor: disabled ? 'not-allowed' : 'pointer',
         ...style,
       }}
     >
+      {label}
+    </button>
+  );
+}
+
+export function MatButtonFilled({
+  label,
+  icon,
+  onClick,
+  disabled,
+  style,
+}: {
+  label: string;
+  icon?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  style?: CSSProperties;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        ...base,
+        background: disabled ? '#E5E3EC' : '#2B1C74',
+        color: disabled ? '#8C899C' : '#FFF',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        ...style,
+      }}
+    >
+      {icon && <Icon name={icon} size={18} />}
       {label}
     </button>
   );

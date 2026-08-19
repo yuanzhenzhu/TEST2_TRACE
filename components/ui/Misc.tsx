@@ -1,6 +1,6 @@
 'use client';
 
-import { CSSProperties, ReactNode } from 'react';
+import { CSSProperties, ReactNode, useState } from 'react';
 import { Icon } from './Icon';
 
 export function MatFormField({
@@ -16,22 +16,41 @@ export function MatFormField({
   onChange?: (v: string) => void;
   placeholder?: string;
 }) {
+  const [focused, setFocused] = useState(false);
+  const shrink = focused || !!value;
   return (
     <div style={{ position: 'relative', width }}>
       <span
-        style={{
-          position: 'absolute',
-          top: -8,
-          left: 8,
-          padding: '0 4px',
-          background: '#FFF',
-          fontSize: 12,
-          lineHeight: '16px',
-          letterSpacing: '0.4px',
-          color: '#474554',
-          whiteSpace: 'nowrap',
-          zIndex: 1,
-        }}
+        style={
+          shrink
+            ? {
+                position: 'absolute',
+                top: -8,
+                left: 8,
+                padding: '0 4px',
+                background: '#FFF',
+                fontSize: 12,
+                lineHeight: '16px',
+                letterSpacing: '0.4px',
+                color: '#474554',
+                whiteSpace: 'nowrap',
+                zIndex: 1,
+              }
+            : {
+                position: 'absolute',
+                top: 0,
+                left: 16,
+                height: 40,
+                display: 'flex',
+                alignItems: 'center',
+                fontSize: 16,
+                lineHeight: '24px',
+                letterSpacing: '0.5px',
+                color: '#474554',
+                whiteSpace: 'nowrap',
+                pointerEvents: 'none',
+              }
+        }
       >
         {label}
       </span>
@@ -39,6 +58,8 @@ export function MatFormField({
         value={value ?? ''}
         placeholder={placeholder}
         onChange={(e) => onChange?.(e.target.value)}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
         style={{
           width: '100%',
           height: 40,

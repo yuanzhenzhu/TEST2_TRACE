@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { MouseEvent, ReactNode, useState } from 'react';
 import { Icon } from './ui/Icon';
-import { MatButtonIcon, MatButtonText, MatButtonTonal } from './ui/Buttons';
+import { MatButtonIcon, MatButtonTonal } from './ui/Buttons';
 import { MatSelect } from './ui/MatSelect';
 import {
   Breadcrumb,
@@ -13,7 +13,6 @@ import {
   MatCellIndexColDynamic,
   MatCellIndexColStatic,
   MatCheckbox,
-  MatDividerHorizontal,
   MatFormField,
   MatTabs,
   PiecesNavbarItemGroup,
@@ -528,132 +527,136 @@ export default function TrazabilidadApp() {
           <span style={{ fontSize: 36, lineHeight: '44px', color: '#000' }}>Consultar</span>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'stretch' }}>
-            <div
-              style={{
-                borderRadius: 8,
-                background: '#FFF',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 16,
-                padding: 24,
-                alignItems: 'flex-start',
-                boxSizing: 'border-box',
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                <span style={{ position: 'relative', width: 24, height: 24, overflow: 'hidden', flexShrink: 0, display: 'block' }}>
-                  <Image src="/assets/icon-location-on.svg" alt="" width={16} height={20} style={{ position: 'absolute', left: 4, top: 2 }} />
-                </span>
-                <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Por ubicación</span>
-              </div>
-              <span style={{ fontSize: 16, lineHeight: '25px', letterSpacing: '0.5px', color: '#18171C' }}>
-                Una vez seleccionada la ubicación, se mostrará el listado completo de activos y piezas asociados para su consulta y
-                gestión.
-              </span>
-              <div style={{ display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'flex-start', alignSelf: 'stretch' }}>
-                <div
-                  style={{
-                    borderRadius: 8,
-                    background: '#F9F9FB',
-                    display: 'flex',
-                    flexDirection: 'row',
-                    gap: 16,
-                    padding: 24,
-                    alignItems: 'flex-start',
-                    boxSizing: 'border-box',
-                    flex: '1 1 0',
-                  }}
-                >
-                  <MatSelect
-                    label="Flota"
-                    value={s.flota}
-                    options={flotaOptions}
-                    width={506}
-                    onSelect={(v) => patch({ flota: v, unidad: 'Todos', selected: null, expanded: {} })}
-                  />
-                  <MatButtonTonal
-                    label="Ver flota"
-                    onClick={() =>
-                      patch({
-                        screen: 'flota',
-                        selected: null,
-                        expanded: {},
-                        applied: false,
-                        dUnidad: '',
-                        dMode: '',
-                        checkedIds: {},
-                        typeOpen: {},
-                      })
-                    }
-                  />
-                </div>
-                <div
-                  style={{
-                    borderRadius: 8,
-                    background: '#F9F9FB',
-                    display: 'flex',
-                    flexDirection: 'row',
-                    gap: 16,
-                    padding: 24,
-                    alignItems: 'flex-start',
-                    boxSizing: 'border-box',
-                    flex: '1 1 0',
-                  }}
-                >
-                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                    <MatSelect label="Almacén" value="ALM-Mad" options={almacenOptions} width="100%" />
-                  </div>
-                  <MatButtonTonal label="Ver almacén" />
-                </div>
-              </div>
-            </div>
-
-            <div
-              style={{
-                borderRadius: 8,
-                background: '#FFF',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 16,
-                padding: 24,
-                alignItems: 'flex-start',
-                boxSizing: 'border-box',
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'row', gap: 8, padding: '0 4px', alignItems: 'center' }}>
-                <span style={{ position: 'relative', width: 24, height: 24, overflow: 'hidden', flexShrink: 0, display: 'block' }}>
-                  <svg width="22" height="14" viewBox="0 0 22 14" fill="#18171C" style={{ position: 'absolute', left: 1, top: 5 }}>
-                    <path
-                      d="M 0 14 L 0 0 L 2 0 L 2 14 L 0 14 Z M 3 14 L 3 0 L 5 0 L 5 14 L 3 14 Z M 6 14 L 6 0 L 7 0 L 7 14 L 6 14 Z M 9 14 L 9 0 L 11 0 L 11 14 L 9 14 Z M 12 14 L 12 0 L 15 0 L 15 14 L 12 14 Z M 16 14 L 16 0 L 17 0 L 17 14 L 16 14 Z M 19 14 L 19 0 L 22 0 L 22 14 L 19 14 Z"
-                      fillRule="nonzero"
-                    />
-                  </svg>
-                </span>
-                <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Por ID</span>
-              </div>
-              <span style={{ fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px', color: '#18171C' }}>
-                Introduce el ID del componente para realizar la búsqueda.
-              </span>
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'stretch' }}>
               <div
                 style={{
+                  flex: '1 1 0',
+                  minWidth: 0,
                   borderRadius: 8,
-                  background: '#F9F9FB',
+                  background: '#FFF',
                   display: 'flex',
-                  flexDirection: 'row',
+                  flexDirection: 'column',
                   gap: 16,
                   padding: 24,
-                  alignItems: 'center',
+                  alignItems: 'flex-start',
                   boxSizing: 'border-box',
-                  alignSelf: 'stretch',
                 }}
               >
-                <MatFormField label="ID del activo" width={506} />
-                <MatButtonTonal label="Ver componente" disabled />
-                <MatButtonText label="Ver búsquedas anteriores" />
+                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  <span style={{ position: 'relative', width: 24, height: 24, overflow: 'hidden', flexShrink: 0, display: 'block' }}>
+                    <Image src="/assets/icon-location-on.svg" alt="" width={16} height={20} style={{ position: 'absolute', left: 4, top: 2 }} />
+                  </span>
+                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Por ubicación</span>
+                </div>
+                <span style={{ fontSize: 16, lineHeight: '25px', letterSpacing: '0.5px', color: '#18171C' }}>
+                  Consulta el listado completo de activos y piezas para su consulta y gestión.
+                </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignSelf: 'stretch' }}>
+                  <div
+                    style={{
+                      borderRadius: 8,
+                      background: '#F9F9FB',
+                      display: 'flex',
+                      flexDirection: 'row',
+                      gap: 16,
+                      padding: 24,
+                      alignItems: 'flex-end',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                      <MatSelect
+                        label="Flota"
+                        value={s.flota}
+                        options={flotaOptions}
+                        width="100%"
+                        onSelect={(v) => patch({ flota: v, unidad: 'Todos', selected: null, expanded: {} })}
+                      />
+                    </div>
+                    <MatButtonTonal
+                      label="Consultar flota"
+                      onClick={() =>
+                        patch({
+                          screen: 'flota',
+                          selected: null,
+                          expanded: {},
+                          applied: false,
+                          dUnidad: '',
+                          dMode: '',
+                          checkedIds: {},
+                          typeOpen: {},
+                        })
+                      }
+                    />
+                  </div>
+                  <div
+                    style={{
+                      borderRadius: 8,
+                      background: '#F9F9FB',
+                      display: 'flex',
+                      flexDirection: 'row',
+                      gap: 16,
+                      padding: 24,
+                      alignItems: 'flex-end',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                      <MatSelect label="Almacén" value="ALM-Central" options={almacenOptions} width="100%" />
+                    </div>
+                    <MatButtonTonal label="Consultar almacén" />
+                  </div>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  flex: '1 1 0',
+                  minWidth: 0,
+                  borderRadius: 8,
+                  background: '#FFF',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                  padding: 24,
+                  alignItems: 'flex-start',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  <span style={{ color: '#18171C', display: 'flex' }}>
+                    <Icon name="Barcode" size={24} />
+                  </span>
+                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Por número de serie</span>
+                </div>
+                <span style={{ fontSize: 16, lineHeight: '25px', letterSpacing: '0.5px', color: '#18171C' }}>
+                  Introduce el ID del componente para realizar la búsqueda.
+                </span>
+                <div
+                  style={{
+                    borderRadius: 8,
+                    background: '#F9F9FB',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    gap: 16,
+                    padding: 24,
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    boxSizing: 'border-box',
+                    alignSelf: 'stretch',
+                  }}
+                >
+                  <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+                    <MatFormField label="Número de serie" width="100%" />
+                  </div>
+                  <MatButtonTonal
+                    label="Consultar componente"
+                    disabled
+                    style={{ background: '#0D0D0D', color: '#18171C' }}
+                  />
+                </div>
               </div>
             </div>
-
-            <MatDividerHorizontal />
 
             <div style={{ display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'stretch' }}>
               {shortcutCards.map((card) => (

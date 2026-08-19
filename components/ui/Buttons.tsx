@@ -153,11 +153,13 @@ export function MatButtonIcon({
   onClick,
   title,
   style,
+  iconSize = 20,
 }: {
   icon: string;
   onClick?: () => void;
   title?: string;
   style?: CSSProperties;
+  iconSize?: number;
 }) {
   return (
     <button
@@ -179,7 +181,7 @@ export function MatButtonIcon({
         ...style,
       }}
     >
-      <Icon name={icon} size={20} />
+      <Icon name={icon} size={iconSize} />
     </button>
   );
 }

@@ -10,7 +10,6 @@ import {
   Breadcrumb,
   EmptyState,
   MatAvatar,
-  MatCellCellText,
   MatCellIndexColStatic,
   MatCheckbox,
   MatDividerHorizontal,
@@ -98,9 +97,9 @@ const initialState: AppState = {
   applied: false,
   dUnidad: '',
   hijo: 'Ruedas',
-  chipsActivo: [],
+  chipsActivo: ['Kilómetros'],
   chipsPos: [],
-  appliedActivo: [],
+  appliedActivo: ['Kilómetros'],
   appliedPos: [],
   activoMenuOpen: false,
   posMenuOpen: false,
@@ -237,7 +236,44 @@ function Table({
                   </span>
                 </div>
               )}
-              {c.isText && <MatCellCellText text1={c.text} />}
+              {c.isText && (
+                <div
+                  style={{
+                    flex: '1 1 0',
+                    minWidth: 0,
+                    minHeight: 48,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '4px 8px',
+                    borderBottom: '1px solid #C8C7D1',
+                    boxSizing: 'border-box',
+                    background: '#FFF',
+                  }}
+                >
+                  <span
+                    style={{
+                      flex: '1 1 0',
+                      minWidth: 0,
+                      fontSize: 14,
+                      letterSpacing: '0.25px',
+                      color: '#18171C',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {c.text}
+                  </span>
+                  {c.meta && (
+                    <Tooltip text={`Fecha de actualización: ${c.meta}`}>
+                      <span style={{ color: '#474554', display: 'flex', flexShrink: 0 }}>
+                        <Icon name="Info" size={18} />
+                      </span>
+                    </Tooltip>
+                  )}
+                </div>
+              )}
               {c.isTagKm && (
                 <div
                   style={{
@@ -1040,19 +1076,21 @@ export default function TrazabilidadApp() {
     Aux_Posición: (_n, i) => 'AUX-' + ((i % 4) + 1),
     Knuckle: (_n, i) => (i % 2 === 0 ? 'N1' : 'N2'),
   };
-  const buildAtrCell = (label: string, n: TreeNode, i: number) => {
+  const buildAtrCell = (label: string, n: TreeNode, i: number, withMeta: boolean) => {
+    const seed = (Number(n.code) || i + 1) + label.length;
     if (label === 'Tipo') return txtCell(n.tipo || 'Eje');
     if (label === 'ID') return idCell(n.code);
-    if (label === 'Kilómetros') return kmCell(n.km);
-    return txtCell(EXTRA[label] ? EXTRA[label](n, i) : '—');
+    if (label === 'Posición') return txtCell(n.label);
+    if (label === 'Kilómetros') return kmCell(n.km, undefined, withMeta ? fechaActualizacion(seed) : undefined);
+    return txtCell(EXTRA[label] ? EXTRA[label](n, i) : '—', undefined, withMeta ? fechaActualizacion(seed) : undefined);
   };
   const atrNodes = multi ? checkedNodes : sel ? [sel] : [];
   const activoColsLabels = ['Tipo', 'ID', 'Kilómetros'].concat(appA.filter((c) => c !== 'Kilómetros'));
-  const posColsLabels = ['Tipo', 'ID', 'Kilómetros'].concat(appP);
+  const posColsLabels = ['Tipo', 'Posición'].concat(appP);
   const activoCols = activoColsLabels.map((label) => ({ label }));
   const posCols = posColsLabels.map((label) => ({ label }));
-  const activoRows = atrNodes.map((n, i) => ({ id: 'a' + i, cells: activoColsLabels.map((label) => buildAtrCell(label, n, i)) }));
-  const posRows = atrNodes.map((n, i) => ({ id: 'p' + i, cells: posColsLabels.map((label) => buildAtrCell(label, n, i)) }));
+  const activoRows = atrNodes.map((n, i) => ({ id: 'a' + i, cells: activoColsLabels.map((label) => buildAtrCell(label, n, i, true)) }));
+  const posRows = atrNodes.map((n, i) => ({ id: 'p' + i, cells: posColsLabels.map((label) => buildAtrCell(label, n, i, false)) }));
   const contentTabs = multi
     ? ['Atributos de activo', 'Atributos de posición']
     : ['Histórico de vida', 'Atributos de activo', 'Atributos de posición'];
@@ -1751,7 +1789,10 @@ export default function TrazabilidadApp() {
                       </div>
                     </div>
 
-                    <Table cols={activoCols} rows={activoRows} />
+                    <Table cols={activoCols} rows={activoRows} onIdInfoClick={(code) => patch({ historialPopupCode: code })} />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <MatButtonOutlined label="Descargar" icon="Download" />
+                    </div>
                   </div>
                 )}
 
@@ -1777,6 +1818,9 @@ export default function TrazabilidadApp() {
                     </div>
 
                     <Table cols={posCols} rows={posRows} />
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <MatButtonOutlined label="Descargar" icon="Download" />
+                    </div>
                   </div>
                 )}
               </div>

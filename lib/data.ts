@@ -211,7 +211,7 @@ const cell = (t: string, kind: CellKind, flex?: string, meta?: string): Cell => 
   meta,
 });
 
-export const txt = (t: string, flex?: string) => cell(t, 'text', flex);
+export const txt = (t: string, flex?: string, meta?: string) => cell(t, 'text', flex, meta);
 export const id = (t: string, flex?: string) => cell(t, 'id', flex);
 export const bool = (flex?: string) => cell('En servicio', 'bool', flex);
 export const km = (t: string, flex?: string, updatedAt?: string) => cell(t, 'km', flex, updatedAt);
@@ -444,12 +444,12 @@ export function historial(sel: TreeNode | null): { id: string; cells: Cell[] }[]
     anc.map((t) => id(({ Unidad: unidadCode, Coche: cc, Bogie: bb, Eje: ee } as Record<string, string>)[t]));
   const [alt1, alt2] = altMounts(unidadCode, c);
   const [k1, k2, k3] = splitKm(k);
-  // Oldest first, current mount ("En servicio") last — matches the info icon on Kilómetros
-  // only ever showing on the most recent (last) row.
+  // Most recent ("En servicio") first, oldest last — matches the info icon on Kilómetros
+  // only ever showing on the most recent (first) row.
   return [
-    { id: 'h3', cells: lead(alt2.coche, alt2.bogie, e).concat([txt('2023-06-10 11:20'), txt('2025-07-11 09:40'), km(k3)]) },
-    { id: 'h2', cells: lead(alt1.coche, alt1.bogie, e).concat([txt('2024-06-10 08:30'), txt('2025-07-10 16:45'), km(k2)]) },
     { id: 'h1', cells: lead(c, b, e).concat([txt('2025-06-10 09:15'), bool(), km(k1, undefined, fechaActualizacion(seedBase + 1))]) },
+    { id: 'h2', cells: lead(alt1.coche, alt1.bogie, e).concat([txt('2024-06-10 08:30'), txt('2025-07-10 16:45'), km(k2)]) },
+    { id: 'h3', cells: lead(alt2.coche, alt2.bogie, e).concat([txt('2023-06-10 11:20'), txt('2025-07-11 09:40'), km(k3)]) },
   ];
 }
 
@@ -605,18 +605,18 @@ export function hijoRows(sel: TreeNode | null, tipo: string): { id: string; cell
   const pool = siblingsOfType(unidadCode, singTipo).filter((code) => !real.includes(code));
   const pick = (i: number) => pool[i % Math.max(pool.length, 1)] || real[0] || '';
   const ids = [real[0] || pick(0), real[1] || pick(1), pick(2), pick(3), pick(4), pick(5)];
-  // Oldest first, current mount ("En servicio") last — matches the info icon on Kilómetros
-  // only ever showing on the most recent (last) row.
+  // Most recent ("En servicio") first, oldest last — matches the info icon on Kilómetros
+  // only ever showing on the most recent (first) row.
   return [
     {
-      id: 'r3',
+      id: 'r1',
       cells: [
-        txt('2025-01-01 07:10'),
-        txt('2025-07-15 12:25'),
-        id(ids[4]),
-        km(k),
-        id(ids[5]),
-        km(k),
+        txt('2025-12-27 09:00'),
+        bool(),
+        id(ids[0]),
+        km(k, undefined, fechaActualizacion(seedBase + 1)),
+        id(ids[1]),
+        km(k, undefined, fechaActualizacion(seedBase + 2)),
       ],
     },
     {
@@ -631,14 +631,14 @@ export function hijoRows(sel: TreeNode | null, tipo: string): { id: string; cell
       ],
     },
     {
-      id: 'r1',
+      id: 'r3',
       cells: [
-        txt('2025-12-27 09:00'),
-        bool(),
-        id(ids[0]),
-        km(k, undefined, fechaActualizacion(seedBase + 1)),
-        id(ids[1]),
-        km(k, undefined, fechaActualizacion(seedBase + 2)),
+        txt('2025-01-01 07:10'),
+        txt('2025-07-15 12:25'),
+        id(ids[4]),
+        km(k),
+        id(ids[5]),
+        km(k),
       ],
     },
   ];

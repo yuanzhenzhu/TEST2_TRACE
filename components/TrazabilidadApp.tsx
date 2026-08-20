@@ -1,7 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { MouseEvent, ReactNode, useState } from 'react';
+import { MouseEvent, ReactNode, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Icon } from './ui/Icon';
 import { MatButtonFilled, MatButtonIcon, MatButtonOutlined, MatButtonText, MatButtonTonal } from './ui/Buttons';
 import { MatSelect } from './ui/MatSelect';
@@ -10,7 +11,6 @@ import {
   EmptyState,
   MatAvatar,
   MatCellCellText,
-  MatCellIndexColDynamic,
   MatCellIndexColStatic,
   MatCheckbox,
   MatDividerHorizontal,
@@ -36,7 +36,9 @@ import {
   Tipo,
   TreeNode,
   almacenHistorial,
+  fechaActualizacion,
   find,
+  findByCode,
   hijoRows as buildHijoRows,
   historial as buildHistorial,
   id as idCell,
@@ -63,7 +65,7 @@ interface AppState {
   appliedPos: string[];
   activoMenuOpen: boolean;
   posMenuOpen: boolean;
-  sortDesc: boolean;
+  historialPopupCode: string | null;
   movUnidad: string;
   movTipoComponente: string;
   movTipoOperacion: string;
@@ -102,7 +104,7 @@ const initialState: AppState = {
   appliedPos: [],
   activoMenuOpen: false,
   posMenuOpen: false,
-  sortDesc: true,
+  historialPopupCode: null,
   movUnidad: '',
   movTipoComponente: '',
   movTipoOperacion: '',
@@ -122,31 +124,68 @@ const initialState: AppState = {
   almacenExpandedIds: {},
 };
 
+function Tooltip({ text, children }: { text: string; children: ReactNode }) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  const show = () => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (rect) setPos({ top: rect.top - 8, left: rect.left + rect.width / 2 });
+  };
+
+  return (
+    <span
+      ref={ref}
+      style={{ position: 'relative', display: 'inline-flex' }}
+      onMouseEnter={show}
+      onMouseLeave={() => setPos(null)}
+    >
+      {children}
+      {pos &&
+        createPortal(
+          <span
+            style={{
+              position: 'fixed',
+              top: pos.top,
+              left: pos.left,
+              transform: 'translate(-50%, -100%)',
+              background: '#18171C',
+              color: '#FFF',
+              fontSize: 12,
+              lineHeight: '16px',
+              padding: '6px 10px',
+              borderRadius: 4,
+              whiteSpace: 'nowrap',
+              zIndex: 1000,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              pointerEvents: 'none',
+            }}
+          >
+            {text}
+          </span>,
+          document.body
+        )}
+    </span>
+  );
+}
+
 function Table({
   cols,
   rows,
-  sortIdx,
-  sortDesc,
-  onSort,
   minWidth,
+  onIdInfoClick,
 }: {
   cols: { label: string; sortableActive?: boolean }[];
   rows: { id: string; cells: Cell[] }[];
-  sortIdx?: number;
-  sortDesc?: boolean;
-  onSort?: () => void;
   minWidth?: number;
+  onIdInfoClick?: (code: string) => void;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minWidth }}>
       <div style={{ display: 'flex', flexDirection: 'row' }}>
         {cols.map((col, i) => (
           <div key={i} style={{ flex: '1 1 0', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
-            {sortIdx === i ? (
-              <MatCellIndexColDynamic label={col.label} sorted={sortDesc ? 'desc' : 'asc'} onSort={onSort} />
-            ) : (
-              <MatCellIndexColStatic label={col.label} />
-            )}
+            <MatCellIndexColStatic label={col.label} />
           </div>
         ))}
       </div>
@@ -182,7 +221,18 @@ function Table({
                   >
                     {c.text}
                   </span>
-                  <span style={{ flexShrink: 0, color: '#474554', display: 'flex' }}>
+                  <span
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onIdInfoClick?.(c.text);
+                    }}
+                    style={{
+                      flexShrink: 0,
+                      color: '#474554',
+                      display: 'flex',
+                      cursor: onIdInfoClick ? 'pointer' : 'default',
+                    }}
+                  >
                     <Icon name="Info" size={18} />
                   </span>
                 </div>
@@ -203,9 +253,13 @@ function Table({
                   }}
                 >
                   <TagSemanticStatus status="Info" label={c.text} />
-                  <span style={{ color: '#474554', display: 'flex' }}>
-                    <Icon name="Info" size={18} />
-                  </span>
+                  {c.meta && (
+                    <Tooltip text={`Fecha de actualización: ${c.meta}`}>
+                      <span style={{ color: '#474554', display: 'flex' }}>
+                        <Icon name="Info" size={18} />
+                      </span>
+                    </Tooltip>
+                  )}
                 </div>
               )}
               {c.isTagBool && (
@@ -903,7 +957,6 @@ export default function TrazabilidadApp() {
 
   const selAnc = ANCESTORS[(sel?.tipo as Tipo) || 'Eje'] || [];
   const histLabels: string[] = (selAnc as string[]).concat(['Fecha de montaje', 'Fecha de desmontaje', 'Kilometraje parcial']);
-  const sortIdx = selAnc.length;
   const histCols = histLabels.map((label) => ({ label }));
 
   const hijoOptions = (sel && HIJOS[sel.tipo]) || [];
@@ -911,8 +964,7 @@ export default function TrazabilidadApp() {
   const hijoSing = SING[hijoValue] || 'Componente';
   const hijosChildren = (sel?.children || []).filter((c) => (c.tipo || 'Eje') === hijoSing);
 
-  let histRows = buildHistorial(sel);
-  if (!s.sortDesc) histRows = histRows.slice().reverse();
+  const histRows = buildHistorial(sel);
 
   const hijoIsLeftRight = hijoSing === 'Rueda' || hijoSing === 'Reductora';
   const hijoCols =
@@ -933,6 +985,18 @@ export default function TrazabilidadApp() {
         ].map((label) => ({ label }));
   const hijoMinWidth = hijoValue === 'Coches' ? 1750 : undefined;
   const hijoRowsData = buildHijoRows(sel, hijoValue);
+
+  const movHistCols = [{ label: 'Fecha' }, { label: 'Tipo' }, { label: 'Con padre' }, { label: 'Con hijos' }];
+  const movHistRows = [
+    { id: 'm1', cells: [txtCell('2025-06-30 08:20'), txtCell('Intercambio entre unidades'), txtCell('Sí'), txtCell('No')] },
+  ];
+
+  const historialPopupNode = s.historialPopupCode ? findByCode(roots, s.historialPopupCode) : null;
+  const historialPopupAnc = ANCESTORS[(historialPopupNode?.tipo as Tipo) || 'Eje'] || [];
+  const historialPopupCols = (historialPopupAnc as string[])
+    .concat(['Fecha de montaje', 'Fecha de desmontaje', 'Kilometraje parcial'])
+    .map((label) => ({ label }));
+  const historialPopupRows = historialPopupNode ? buildHistorial(historialPopupNode) : [];
 
   // ---- atributos tab ----
   const activoOpts = ['Kilómetros', 'Ciclos', 'Horas', 'Fecha overhaul', 'Km overhaul', 'Modelo', 'Material'];
@@ -1472,7 +1536,9 @@ export default function TrazabilidadApp() {
                     <span style={{ flex: 1, fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#18171C' }}>{flotaDate}</span>
                     <MatButtonIcon icon="CalendarMonth" title="Elegir fecha" />
                   </div>
-                  <MatButtonText label="Descargar arbol" icon="Download" style={{ padding: '6px 8px', height: 32, flexShrink: 0 }} />
+                  {s.treeTab === 0 && (
+                    <MatButtonText label="Descargar arbol" icon="Download" style={{ padding: '6px 8px', height: 32, flexShrink: 0 }} />
+                  )}
                 </div>
 
                 {emptyFleet && <EmptyState icon="AccountTree" text="Esta flota no tiene datos cargados" width="100%" height={168} />}
@@ -1615,7 +1681,7 @@ export default function TrazabilidadApp() {
                 )}
 
                 {showHistorial && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: 32, boxSizing: 'border-box', flexGrow: 1 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 40, padding: 32, boxSizing: 'border-box', flexGrow: 1 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
                       <span style={{ fontWeight: 500, fontSize: 16, lineHeight: '25px', letterSpacing: '0.15px', color: '#18171C' }}>
                         Histórico
@@ -1623,11 +1689,9 @@ export default function TrazabilidadApp() {
                       <Table
                         cols={histCols}
                         rows={histRows}
-                        sortIdx={sortIdx}
-                        sortDesc={s.sortDesc}
-                        onSort={() => patch((prev) => ({ sortDesc: !prev.sortDesc }))}
+                        onIdInfoClick={(code) => patch({ historialPopupCode: code })}
                       />
-                      <div>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <MatButtonOutlined label="Descargar" icon="Download" />
                       </div>
                     </div>
@@ -1641,9 +1705,14 @@ export default function TrazabilidadApp() {
                           <MatSelect label="Tipo de componente" value={hijoValue} options={hijoOptions} width={220} onSelect={(v) => patch({ hijo: v })} />
                         </div>
                         <div style={{ overflowX: 'auto' }}>
-                          <Table cols={hijoCols} rows={hijoRowsData} minWidth={hijoMinWidth} />
+                          <Table
+                            cols={hijoCols}
+                            rows={hijoRowsData}
+                            minWidth={hijoMinWidth}
+                            onIdInfoClick={(code) => patch({ historialPopupCode: code })}
+                          />
                         </div>
-                        <div>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                           <MatButtonOutlined label="Descargar" icon="Download" />
                         </div>
                       </div>
@@ -1653,21 +1722,8 @@ export default function TrazabilidadApp() {
                       <span style={{ fontWeight: 500, fontSize: 16, lineHeight: '25px', letterSpacing: '0.15px', color: '#18171C' }}>
                         Movimientos
                       </span>
-                      <Table
-                        cols={[{ label: 'Fecha' }, { label: 'Tipo' }, { label: 'Con padre' }, { label: 'Con hijos' }]}
-                        rows={[
-                          {
-                            id: 'm1',
-                            cells: [
-                              txtCell('2025-06-30'),
-                              txtCell('Intercambio entre unidades'),
-                              txtCell('Sí'),
-                              txtCell('No'),
-                            ],
-                          },
-                        ]}
-                      />
-                      <div>
+                      <Table cols={movHistCols} rows={movHistRows} />
+                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                         <MatButtonOutlined label="Descargar" icon="Download" />
                       </div>
                     </div>
@@ -1689,44 +1745,6 @@ export default function TrazabilidadApp() {
                         onToggleChip={tA}
                         onToggleMenu={() => patch((prev) => ({ activoMenuOpen: !prev.activoMenuOpen }))}
                       />
-
-                      <div
-                        style={{
-                          position: 'relative',
-                          minHeight: 56,
-                          display: 'flex',
-                          flexDirection: 'row',
-                          gap: 8,
-                          alignItems: 'center',
-                          padding: '8px 12px',
-                          border: '1px solid #77728D',
-                          borderRadius: 4,
-                          boxSizing: 'border-box',
-                          background: '#FFF',
-                          flex: '0 0 250px',
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: 'absolute',
-                            top: -8,
-                            left: 12,
-                            padding: '0 4px',
-                            background: '#FFF',
-                            fontSize: 12,
-                            lineHeight: '16px',
-                            letterSpacing: '0.4px',
-                            color: '#474554',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          Fecha
-                        </span>
-                        <span style={{ fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px', color: '#18171C', whiteSpace: 'nowrap' }}>{fechaValue}</span>
-                        <span style={{ marginLeft: 'auto', color: '#474554', display: 'flex' }}>
-                          <Icon name="CalendarMonth" size={24} />
-                        </span>
-                      </div>
 
                       <div style={{ display: 'flex', alignItems: 'center', minHeight: 56 }}>
                         <MatButtonTonal label="Aplicar" onClick={() => patch({ appliedActivo: s.chipsActivo.slice(), activoMenuOpen: false })} />
@@ -1753,44 +1771,6 @@ export default function TrazabilidadApp() {
                         onToggleMenu={() => patch((prev) => ({ posMenuOpen: !prev.posMenuOpen }))}
                       />
 
-                      <div
-                        style={{
-                          position: 'relative',
-                          minHeight: 56,
-                          display: 'flex',
-                          flexDirection: 'row',
-                          gap: 8,
-                          alignItems: 'center',
-                          padding: '8px 12px',
-                          border: '1px solid #77728D',
-                          borderRadius: 4,
-                          boxSizing: 'border-box',
-                          background: '#FFF',
-                          flex: '0 0 250px',
-                        }}
-                      >
-                        <span
-                          style={{
-                            position: 'absolute',
-                            top: -8,
-                            left: 12,
-                            padding: '0 4px',
-                            background: '#FFF',
-                            fontSize: 12,
-                            lineHeight: '16px',
-                            letterSpacing: '0.4px',
-                            color: '#474554',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          Fecha
-                        </span>
-                        <span style={{ fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px', color: '#18171C', whiteSpace: 'nowrap' }}>{fechaValue}</span>
-                        <span style={{ marginLeft: 'auto', color: '#474554', display: 'flex' }}>
-                          <Icon name="CalendarMonth" size={24} />
-                        </span>
-                      </div>
-
                       <div style={{ display: 'flex', alignItems: 'center', minHeight: 56 }}>
                         <MatButtonTonal label="Aplicar" onClick={() => patch({ appliedPos: s.chipsPos.slice(), posMenuOpen: false })} />
                       </div>
@@ -1802,6 +1782,46 @@ export default function TrazabilidadApp() {
               </div>
             </div>
           </div>
+
+          {s.historialPopupCode && (
+            <div
+              style={{
+                position: 'fixed',
+                inset: 0,
+                background: 'rgba(24,23,28,0.4)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 50,
+              }}
+              onClick={() => patch({ historialPopupCode: null })}
+            >
+              <div
+                style={{
+                  width: 720,
+                  maxHeight: '80vh',
+                  overflowY: 'auto',
+                  background: '#FFF',
+                  borderRadius: 16,
+                  padding: 24,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                  boxSizing: 'border-box',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    <span style={{ fontSize: 20, fontWeight: 500, color: '#18171C' }}>Histórico de este componente</span>
+                    <span style={{ fontSize: 14, color: '#474554' }}>{s.historialPopupCode}</span>
+                  </div>
+                  <MatButtonIcon icon="Close" title="Cerrar" onClick={() => patch({ historialPopupCode: null })} />
+                </div>
+                <Table cols={historialPopupCols} rows={historialPopupRows} />
+              </div>
+            </div>
+          )}
         </div>
       )}
 

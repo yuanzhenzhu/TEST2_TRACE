@@ -178,6 +178,17 @@ export function find(nodes: TreeNode[], id: string): TreeNode | null {
   return null;
 }
 
+export function findByCode(nodes: TreeNode[], code: string): TreeNode | null {
+  for (const n of nodes) {
+    if (n.code === code) return n;
+    if (n.children) {
+      const hit = findByCode(n.children, code);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 export type CellKind = 'text' | 'id' | 'bool' | 'km';
 
 export interface Cell {
@@ -187,21 +198,31 @@ export interface Cell {
   isId: boolean;
   isTagBool: boolean;
   isTagKm: boolean;
+  meta?: string;
 }
 
-const cell = (t: string, kind: CellKind, flex?: string): Cell => ({
+const cell = (t: string, kind: CellKind, flex?: string, meta?: string): Cell => ({
   text: t,
   flex: flex || '1 1 0',
   isText: kind === 'text',
   isId: kind === 'id',
   isTagBool: kind === 'bool',
   isTagKm: kind === 'km',
+  meta,
 });
 
 export const txt = (t: string, flex?: string) => cell(t, 'text', flex);
 export const id = (t: string, flex?: string) => cell(t, 'id', flex);
 export const bool = (flex?: string) => cell('En servicio', 'bool', flex);
-export const km = (t: string, flex?: string) => cell(t, 'km', flex);
+export const km = (t: string, flex?: string, updatedAt?: string) => cell(t, 'km', flex, updatedAt);
+
+// Deterministic "fecha de actualización" (down to the minute) for a km-cell tooltip — no
+// live clock, so the value stays stable between server and client render.
+export function fechaActualizacion(seed: number): string {
+  const d = new Date(2026, 7, 20 - (seed % 10), 8 + (seed % 12), (seed * 7) % 60);
+  const p = (v: number) => String(v).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 // Fixed column widths for the wide (per-coche) child table
 export const W_DESDE = '0 0 190px';
@@ -406,6 +427,7 @@ export function historial(sel: TreeNode | null): { id: string; cells: Cell[] }[]
   const c = sel?.cocheCode || '3221';
   const b = sel?.bogieCode || '5149-MK6-001';
   const k = sel?.km || U3220_KM;
+  const seedBase = Number(sel?.code) || 1;
   const anc = ANCESTORS[(sel?.tipo as Tipo) || 'Eje'] || [];
   if (anc.length < 3) {
     const pre: Record<string, Cell> = {
@@ -415,17 +437,19 @@ export function historial(sel: TreeNode | null): { id: string; cells: Cell[] }[]
       Eje: id(sel?.ejeCode || '415876'),
     };
     const lead = anc.map((t) => pre[t]);
-    return [{ id: 'h1', cells: lead.concat([txt('04-ene-2000 1:00:00'), bool(), km(k)]) }];
+    return [{ id: 'h1', cells: lead.concat([txt('04-ene-2000 01:00'), bool(), km(k, undefined, fechaActualizacion(seedBase))]) }];
   }
   const e = sel?.ejeCode || '415876';
   const lead = (cc: string, bb: string, ee: string) =>
     anc.map((t) => id(({ Unidad: unidadCode, Coche: cc, Bogie: bb, Eje: ee } as Record<string, string>)[t]));
   const [alt1, alt2] = altMounts(unidadCode, c);
   const [k1, k2, k3] = splitKm(k);
+  // Oldest first, current mount ("En servicio") last — matches the info icon on Kilómetros
+  // only ever showing on the most recent (last) row.
   return [
-    { id: 'h1', cells: lead(c, b, e).concat([txt('2025-06-10'), bool(), km(k1)]) },
-    { id: 'h2', cells: lead(alt1.coche, alt1.bogie, e).concat([txt('2024-06-10'), txt('2025-07-10'), km(k2)]) },
-    { id: 'h3', cells: lead(alt2.coche, alt2.bogie, e).concat([txt('2023-06-10'), txt('2025-07-11'), km(k3)]) },
+    { id: 'h3', cells: lead(alt2.coche, alt2.bogie, e).concat([txt('2023-06-10 11:20'), txt('2025-07-11 09:40'), km(k3)]) },
+    { id: 'h2', cells: lead(alt1.coche, alt1.bogie, e).concat([txt('2024-06-10 08:30'), txt('2025-07-10 16:45'), km(k2)]) },
+    { id: 'h1', cells: lead(c, b, e).concat([txt('2025-06-10 09:15'), bool(), km(k1, undefined, fechaActualizacion(seedBase + 1))]) },
   ];
 }
 
@@ -548,31 +572,74 @@ MOVIMIENTOS[8] = { ...MOVIMIENTOS[8], fecha: '05-08-2026 08:00:00' };
 export const TIPOS_COMPONENTE = ['Eje', 'Rueda', 'Reductora', 'Ventilador', 'Compresor', 'Patín captación'];
 export const TIPOS_OPERACION = MOVIMIENTOS_BASE.map((r) => r.operacion);
 
+// All codes of a given tipo that exist within the same unidad as unidadCode — used to fill
+// "previously mounted" hijo-historial slots with REAL codes from that unidad (never another
+// unidad's), instead of a fleet-agnostic hardcoded list.
+function siblingsOfType(unidadCode: string, tipo: Tipo): string[] {
+  const unidad = findUnidad(unidadCode);
+  const out: string[] = [];
+  (function walk(nodes: TreeNode[]) {
+    nodes.forEach((n) => {
+      if (n.tipo === tipo) out.push(n.code);
+      if (n.children) walk(n.children);
+    });
+  })(unidad?.children || []);
+  return out;
+}
+
 export function hijoRows(sel: TreeNode | null, tipo: string): { id: string; cells: Cell[] }[] {
-  const SETS: Record<string, string[]> = {
-    Reductoras: ['9427/B/001', '9427/A/004', '9427/B/002', '9427/A/005', '9427/B/003', '9427/A/006'],
-    Ruedas: ['082801-0025', '082801-0005r', '082801-0024', '082801-0004r', '082801-0023', '082801-0003r'],
-    Ejes: ['415876', '415875', '415878', '415877', '415880', '415879'],
-    Bogies: ['5149-MK6-001', '5149-MK6-002', '5149-MK6-003', '5149-MK6-004', '5149-MK6-005', '5149-MK6-006'],
-    Coches: ['3221', '3222', '3223', '3224', '3225', '3221'],
-  };
-  const ids = (SETS[tipo] || SETS.Ruedas).slice();
-  const real = (sel?.children || []).filter((c) => c.tipo === SING[tipo]);
-  if (real[0]) ids[0] = real[0].code;
-  if (real[1]) ids[1] = real[1].code;
+  const unidadCode = sel?.unidadCode || '3220';
   const k = sel?.km || U3220_KM;
+  const seedBase = Number(sel?.code) || 1;
   if (tipo === 'Coches') {
     const coches = (sel?.children || []).map((cc) => cc.code);
     const pairs: Cell[] = [];
-    coches.forEach((c) => {
+    coches.forEach((c, i) => {
       pairs.push(id(c, W_ID));
-      pairs.push(km(k, W_DRIVER));
+      pairs.push(km(k, W_DRIVER, fechaActualizacion(seedBase + i)));
     });
-    return [{ id: 'r1', cells: [txt('04-ene-2000 1:00:00', W_DESDE), bool(W_HASTA)].concat(pairs) }];
+    return [{ id: 'r1', cells: [txt('04-ene-2000 01:00', W_DESDE), bool(W_HASTA)].concat(pairs) }];
   }
+  const singTipo = (SING[tipo] || 'Rueda') as Tipo;
+  const real = (sel?.children || []).filter((c) => c.tipo === singTipo).map((c) => c.code);
+  const pool = siblingsOfType(unidadCode, singTipo).filter((code) => !real.includes(code));
+  const pick = (i: number) => pool[i % Math.max(pool.length, 1)] || real[0] || '';
+  const ids = [real[0] || pick(0), real[1] || pick(1), pick(2), pick(3), pick(4), pick(5)];
+  // Oldest first, current mount ("En servicio") last — matches the info icon on Kilómetros
+  // only ever showing on the most recent (last) row.
   return [
-    { id: 'r1', cells: [txt('2025-12-27'), bool(), id(ids[0]), km(k), id(ids[1]), km(k)] },
-    { id: 'r2', cells: [txt('2025-06-30'), txt('2026-01-11'), id(ids[2]), km(k), id(ids[3]), km(k)] },
-    { id: 'r3', cells: [txt('2025-01-01'), txt('2025-07-15'), id(ids[4]), km(k), id(ids[5]), km(k)] },
+    {
+      id: 'r3',
+      cells: [
+        txt('2025-01-01 07:10'),
+        txt('2025-07-15 12:25'),
+        id(ids[4]),
+        km(k),
+        id(ids[5]),
+        km(k),
+      ],
+    },
+    {
+      id: 'r2',
+      cells: [
+        txt('2025-06-30 15:50'),
+        txt('2026-01-11 10:05'),
+        id(ids[2]),
+        km(k),
+        id(ids[3]),
+        km(k),
+      ],
+    },
+    {
+      id: 'r1',
+      cells: [
+        txt('2025-12-27 09:00'),
+        bool(),
+        id(ids[0]),
+        km(k, undefined, fechaActualizacion(seedBase + 1)),
+        id(ids[1]),
+        km(k, undefined, fechaActualizacion(seedBase + 2)),
+      ],
+    },
   ];
 }

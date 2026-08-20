@@ -33,6 +33,7 @@ import {
   Filter,
   ChevronsDownUp,
   List,
+  Component,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -70,6 +71,7 @@ const MAP: Record<string, LucideIcon> = {
   Filter: Filter,
   UnfoldLess: ChevronsDownUp,
   List: List,
+  Component: Component,
 };
 
 export function Icon({ name, size = 20 }: { name: string; size?: number }) {

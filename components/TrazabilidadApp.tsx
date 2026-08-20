@@ -76,6 +76,7 @@ interface AppState {
   soloIntercambiados: boolean;
   almacen: string;
   dAlmacen: string;
+  dTipoComponente: string;
   almacenApplied: boolean;
   almacenExpandedTipos: Record<string, boolean>;
   almacenCheckedIds: Record<string, boolean>;
@@ -117,6 +118,7 @@ const initialState: AppState = {
   soloIntercambiados: false,
   almacen: 'Taller Stock Urbos 100',
   dAlmacen: '',
+  dTipoComponente: '',
   almacenApplied: false,
   almacenExpandedTipos: {},
   almacenCheckedIds: {},
@@ -1286,7 +1288,7 @@ export default function TrazabilidadApp() {
   const flotaFechaValue = s.flotaFecha || flotaFechaMax || '';
   const shortcutCards = [
     { title: 'Movimientos', body: 'Texto descriptivo acerca de Movimientos' },
-    { title: 'Información de talleres', body: 'Texto descriptivo acerca de Información de talleres' },
+    { title: 'Talleres', body: 'Texto descriptivo acerca de Información de talleres' },
     { title: 'Lineas', body: 'Texto descriptivo acerca de Lineas' },
   ];
 
@@ -1366,10 +1368,10 @@ export default function TrazabilidadApp() {
             boxSizing: 'border-box',
           }}
         >
-          <span style={{ fontSize: 36, lineHeight: '44px', color: '#000' }}>Consultar</span>
+          <span style={{ fontSize: 36, lineHeight: '44px', color: '#000' }}>Consultar por...</span>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'stretch' }}>
-            <div style={{ display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'stretch' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch' }}>
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'stretch' }}>
               <div
                 style={{
                   flex: '1 1 0',
@@ -1385,90 +1387,51 @@ export default function TrazabilidadApp() {
                 }}
               >
                 <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                  <span style={{ position: 'relative', width: 24, height: 24, overflow: 'hidden', flexShrink: 0, display: 'block' }}>
-                    <Image src="/assets/icon-location-on.svg" alt="" width={16} height={20} style={{ position: 'absolute', left: 4, top: 2 }} />
+                  <span style={{ color: '#18171C', display: 'flex' }}>
+                    <Icon name="Train" size={24} />
                   </span>
-                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Por ubicación</span>
+                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Flota</span>
                 </div>
-                <span style={{ fontSize: 16, lineHeight: '25px', letterSpacing: '0.5px', color: '#18171C' }}>
-                  Consulta el listado completo de activos y piezas para su consulta y gestión.
-                </span>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignSelf: 'stretch' }}>
-                  <div
-                    style={{
-                      borderRadius: 8,
-                      background: '#F9F9FB',
-                      display: 'flex',
-                      flexDirection: 'row',
-                      gap: 16,
-                      padding: 24,
-                      alignItems: 'flex-end',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                      <MatSelect
-                        label="Flota"
-                        value={s.flota}
-                        options={flotaOptions}
-                        width="100%"
-                        onSelect={(v) => patch({ flota: v, unidad: 'Todos', selected: null, expanded: {} })}
-                      />
-                    </div>
-                    <MatButtonTonal
-                      label="Consultar flota"
-                      onClick={() =>
-                        patch({
-                          screen: 'flota',
-                          selected: null,
-                          expanded: {},
-                          applied: false,
-                          dUnidad: '',
-                          checkedIds: {},
-                          typeOpen: {},
-                          flotaSearch: '',
-                          flotaCtxExpanded: {},
-                          flotaFecha: '',
-                        })
-                      }
+                <div
+                  style={{
+                    borderRadius: 8,
+                    background: '#F9F9FB',
+                    border: '1px solid #C8C7D1',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    gap: 16,
+                    padding: 24,
+                    alignItems: 'flex-end',
+                    boxSizing: 'border-box',
+                    alignSelf: 'stretch',
+                  }}
+                >
+                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                    <MatSelect
+                      label="Flota"
+                      value={s.flota}
+                      options={flotaOptions}
+                      width="100%"
+                      onSelect={(v) => patch({ flota: v, unidad: 'Todos', selected: null, expanded: {} })}
                     />
                   </div>
-                  <div
-                    style={{
-                      borderRadius: 8,
-                      background: '#F9F9FB',
-                      display: 'flex',
-                      flexDirection: 'row',
-                      gap: 16,
-                      padding: 24,
-                      alignItems: 'flex-end',
-                      boxSizing: 'border-box',
-                    }}
-                  >
-                    <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                      <MatSelect
-                        label="Almacén"
-                        value={s.almacen}
-                        options={almacenOptions}
-                        width="100%"
-                        onSelect={(v) => patch({ almacen: v })}
-                      />
-                    </div>
-                    <MatButtonTonal
-                      label="Consultar almacén"
-                      onClick={() =>
-                        patch((prev) => ({
-                          screen: 'almacen',
-                          dAlmacen: prev.almacen,
-                          almacenApplied: true,
-                          almacenExpandedTipos: {},
-                          almacenCheckedIds: {},
-                          almacenSelectedId: null,
-                          almacenSearch: '',
-                        }))
-                      }
-                    />
-                  </div>
+                  <MatButtonTonal
+                    label="Consultar por flota"
+                    onClick={() =>
+                      patch({
+                        screen: 'flota',
+                        selected: null,
+                        expanded: {},
+                        applied: false,
+                        dUnidad: '',
+                        checkedIds: {},
+                        typeOpen: {},
+                        flotaSearch: '',
+                        flotaCtxExpanded: {},
+                        flotaFecha: '',
+                      })
+                    }
+                  />
                 </div>
               </div>
 
@@ -1488,17 +1451,77 @@ export default function TrazabilidadApp() {
               >
                 <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                   <span style={{ color: '#18171C', display: 'flex' }}>
-                    <Icon name="Barcode" size={24} />
+                    <Icon name="Warehouse" size={24} />
                   </span>
-                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Por número de serie</span>
+                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Almacén</span>
                 </div>
-                <span style={{ fontSize: 16, lineHeight: '25px', letterSpacing: '0.5px', color: '#18171C' }}>
-                  Introduce el ID del componente para realizar la búsqueda.
-                </span>
                 <div
                   style={{
                     borderRadius: 8,
                     background: '#F9F9FB',
+                    border: '1px solid #C8C7D1',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    gap: 16,
+                    padding: 24,
+                    alignItems: 'flex-end',
+                    boxSizing: 'border-box',
+                    alignSelf: 'stretch',
+                  }}
+                >
+                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                    <MatSelect
+                      label="Almacén"
+                      value={s.almacen}
+                      options={almacenOptions}
+                      width="100%"
+                      onSelect={(v) => patch({ almacen: v })}
+                    />
+                  </div>
+                  <MatButtonTonal
+                    label="Consultar por almacén"
+                    onClick={() =>
+                      patch((prev) => ({
+                        screen: 'almacen',
+                        dAlmacen: prev.almacen,
+                        almacenApplied: true,
+                        almacenExpandedTipos: {},
+                        almacenCheckedIds: {},
+                        almacenSelectedId: null,
+                        almacenSearch: '',
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'stretch' }}>
+              <div
+                style={{
+                  flex: '1 1 0',
+                  minWidth: 0,
+                  borderRadius: 8,
+                  background: '#FFF',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                  padding: 24,
+                  alignItems: 'flex-start',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  <span style={{ color: '#18171C', display: 'flex' }}>
+                    <Icon name="Barcode" size={24} />
+                  </span>
+                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Número de serie</span>
+                </div>
+                <div
+                  style={{
+                    borderRadius: 8,
+                    background: '#F9F9FB',
+                    border: '1px solid #C8C7D1',
                     display: 'flex',
                     flexDirection: 'row',
                     gap: 16,
@@ -1513,41 +1536,96 @@ export default function TrazabilidadApp() {
                     <MatFormField label="Número de serie" width="100%" />
                   </div>
                   <MatButtonTonal
-                    label="Consultar componente"
+                    label="Consultar por número de serie"
                     disabled
-                    style={{ background: '#0D0D0D', color: '#18171C' }}
+                    style={{ background: 'rgba(13,13,13,0.1)', color: 'rgba(24,23,28,0.38)' }}
+                  />
+                </div>
+              </div>
+
+              <div
+                style={{
+                  flex: '1 1 0',
+                  minWidth: 0,
+                  borderRadius: 8,
+                  background: '#FFF',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                  padding: 24,
+                  alignItems: 'flex-start',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                  <span style={{ color: '#18171C', display: 'flex' }}>
+                    <Icon name="Component" size={24} />
+                  </span>
+                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Tipo de componente</span>
+                </div>
+                <div
+                  style={{
+                    borderRadius: 8,
+                    background: '#F9F9FB',
+                    border: '1px solid #C8C7D1',
+                    display: 'flex',
+                    flexDirection: 'row',
+                    gap: 16,
+                    padding: 24,
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    boxSizing: 'border-box',
+                    alignSelf: 'stretch',
+                  }}
+                >
+                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                    <MatSelect
+                      label="Tipo de componente"
+                      value={s.dTipoComponente || 'Seleccionar'}
+                      options={TIPOS_COMPONENTE}
+                      width="100%"
+                      onSelect={(v) => patch({ dTipoComponente: v })}
+                    />
+                  </div>
+                  <MatButtonTonal
+                    label="Consultar por tipo de componente"
+                    disabled
+                    style={{ background: 'rgba(13,13,13,0.1)', color: 'rgba(24,23,28,0.38)' }}
                   />
                 </div>
               </div>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'stretch' }}>
-              {shortcutCards.map((card) => {
-                const onOpen = card.title === 'Movimientos' ? () => patch({ screen: 'movimientos' }) : undefined;
-                return (
-                  <div
-                    key={card.title}
-                    onClick={onOpen}
-                    style={{
-                      flex: '1 1 0',
-                      borderRadius: 8,
-                      background: '#F9F9FB',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 16,
-                      padding: 24,
-                      boxSizing: 'border-box',
-                      cursor: onOpen ? 'pointer' : 'default',
-                    }}
-                  >
-                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: 24, lineHeight: '32px', color: '#18171C' }}>{card.title}</span>
-                      <MatButtonIcon icon="ChevronRight" onClick={onOpen} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 32 }}>
+              <span style={{ fontSize: 24, lineHeight: '32px', color: '#000' }}>Otras búsquedas</span>
+              <div style={{ display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'stretch' }}>
+                {shortcutCards.map((card) => {
+                  const onOpen = card.title === 'Movimientos' ? () => patch({ screen: 'movimientos' }) : undefined;
+                  return (
+                    <div
+                      key={card.title}
+                      onClick={onOpen}
+                      style={{
+                        flex: '1 1 0',
+                        borderRadius: 8,
+                        background: '#F9F9FB',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 16,
+                        padding: 24,
+                        boxSizing: 'border-box',
+                        cursor: onOpen ? 'pointer' : 'default',
+                      }}
+                    >
+                      <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 24, lineHeight: '32px', color: '#18171C' }}>{card.title}</span>
+                        <MatButtonIcon icon="ChevronRight" onClick={onOpen} />
+                      </div>
+                      <span style={{ fontSize: 16, lineHeight: '25px', letterSpacing: '0.5px', color: '#18171C' }}>{card.body}</span>
                     </div>
-                    <span style={{ fontSize: 16, lineHeight: '25px', letterSpacing: '0.5px', color: '#18171C' }}>{card.body}</span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

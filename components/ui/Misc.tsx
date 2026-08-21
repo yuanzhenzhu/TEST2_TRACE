@@ -1,6 +1,6 @@
 'use client';
 
-import { CSSProperties, ReactNode, useState } from 'react';
+import { CSSProperties, MouseEvent, ReactNode, useState } from 'react';
 import { Icon } from './Icon';
 
 export function MatFormField({
@@ -443,6 +443,7 @@ export function PiecesNavlistItemNested({
   expanded,
   trailing,
   onClick,
+  onToggleExpand,
 }: {
   label: string;
   code: string;
@@ -450,7 +451,8 @@ export function PiecesNavlistItemNested({
   state: 'Selected' | 'Default';
   expanded?: boolean;
   trailing?: ReactNode;
-  onClick?: () => void;
+  onClick?: (e: MouseEvent) => void;
+  onToggleExpand?: (e: MouseEvent) => void;
 }) {
   return (
     <div
@@ -474,7 +476,13 @@ export function PiecesNavlistItemNested({
         if (state !== 'Selected') e.currentTarget.style.background = 'transparent';
       }}
     >
-      <span style={{ color: '#474554', display: 'flex', flexShrink: 0 }}>
+      <span
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleExpand?.(e);
+        }}
+        style={{ color: '#474554', display: 'flex', flexShrink: 0, cursor: 'pointer' }}
+      >
         <Icon name={expanded ? 'ExpandMore' : 'ChevronRight'} size={20} />
       </span>
       <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>

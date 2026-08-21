@@ -878,17 +878,29 @@ export default function TrazabilidadApp() {
     label: n.label,
     code: n.code,
     depth: n.depth,
-    state: (s.selected === n.id ? 'Selected' : 'Default') as 'Selected' | 'Default',
+    state: (s.checkedIds[n.id] ? 'Selected' : 'Default') as 'Selected' | 'Default',
     expanded: !!s.expanded[n.id],
     trailing: <TagSemanticStatus status="Info" label={n.km} />,
-    onClick: () => {
-      patch((prev) => {
-        const next: Partial<AppState> = { selected: n.id, tab: 0 };
-        if (n.children && n.children.length) {
-          next.expanded = { ...prev.expanded, [n.id]: !prev.expanded[n.id] };
-        }
-        return next;
-      });
+    onClick: (e: MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        patch((prev) => {
+          const next = { ...prev.checkedIds };
+          if (next[n.id]) delete next[n.id];
+          else next[n.id] = true;
+          const keys = Object.keys(next);
+          return {
+            checkedIds: next,
+            selected: keys.length === 1 ? keys[0] : prev.selected,
+            tab: keys.length > 1 ? 0 : prev.tab,
+          };
+        });
+        return;
+      }
+      patch({ selected: n.id, checkedIds: { [n.id]: true }, tab: 0 });
+    },
+    onToggleExpand: () => {
+      if (!n.children || !n.children.length) return;
+      patch((prev) => ({ expanded: { ...prev.expanded, [n.id]: !prev.expanded[n.id] } }));
     },
   }));
 
@@ -957,7 +969,7 @@ export default function TrazabilidadApp() {
             if (all) delete next[n.id];
             else next[n.id] = true;
           });
-          return { checkedIds: next, selected: all ? prev.selected : list[0].id, tab: 1 };
+          return { checkedIds: next, selected: all ? prev.selected : list[0].id, tab: 0 };
         }),
     });
     if (!open) return;
@@ -970,13 +982,13 @@ export default function TrazabilidadApp() {
         chevron: null,
         checked: !!s.checkedIds[n.id],
         trailing: <TagSemanticStatus status="Info" label={n.km} />,
-        onClick: () => patch({ selected: n.id, tab: 0 }),
+        onClick: () => patch({ selected: n.id, checkedIds: { [n.id]: true }, tab: 0 }),
         onCheck: () =>
           patch((prev) => {
             const next = { ...prev.checkedIds };
             if (next[n.id]) delete next[n.id];
             else next[n.id] = true;
-            return { checkedIds: next, selected: n.id, tab: Object.keys(next).length > 1 ? 1 : prev.tab };
+            return { checkedIds: next, selected: n.id, tab: Object.keys(next).length > 1 ? 0 : prev.tab };
           }),
       });
     });
@@ -1594,6 +1606,7 @@ export default function TrazabilidadApp() {
                       expanded={row.expanded}
                       trailing={row.trailing}
                       onClick={row.onClick}
+                      onToggleExpand={row.onToggleExpand}
                     />
                   ))}
                 {showTypes &&

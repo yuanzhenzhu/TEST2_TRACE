@@ -189,6 +189,67 @@ export function findByCode(nodes: TreeNode[], code: string): TreeNode | null {
   return null;
 }
 
+function findAlmacenItemByCode(items: AlmacenItem[], code: string): AlmacenItem | null {
+  for (const it of items) {
+    if (it.code === code) return it;
+    if (it.children) {
+      const hit = findAlmacenItemByCode(it.children, code);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+export type AnywhereHit = { kind: 'tree'; node: TreeNode } | { kind: 'almacen'; item: AlmacenItem };
+
+// Looks up a code across every flota AND every almacén/taller — used by the "Histórico de
+// este componente" popup from screens (like "Consultar por tipo de componente") whose rows
+// can come from either source, not just the currently selected flota/almacén.
+export function findAnywhereByCode(code: string): AnywhereHit | null {
+  for (const roots of Object.values(FLEETS)) {
+    const hit = findByCode(roots, code);
+    if (hit) return { kind: 'tree', node: hit };
+  }
+  for (const almacen of Object.values(ALMACENES)) {
+    for (const list of Object.values(almacen.items)) {
+      const hit = findAlmacenItemByCode(list, code);
+      if (hit) return { kind: 'almacen', item: hit };
+    }
+  }
+  return null;
+}
+
+export interface TipoComponenteRow {
+  id: string;
+  ubicacion: 'Flota' | 'Taller';
+  ubicacionNombre: string;
+  tipo: Tipo;
+  code: string;
+  km: string;
+}
+
+// Every real instance of a given tipo across every flota (in service) and every
+// almacén/taller (in stock) — powers "Consultar por tipo de componente".
+export function buscarPorTipo(tipo: Tipo): TipoComponenteRow[] {
+  const rows: TipoComponenteRow[] = [];
+  Object.entries(FLEETS).forEach(([flotaNombre, roots]) => {
+    (function walk(nodes: TreeNode[]) {
+      nodes.forEach((n) => {
+        if (n.tipo === tipo) {
+          rows.push({ id: n.id, ubicacion: 'Flota', ubicacionNombre: flotaNombre, tipo: n.tipo, code: n.code, km: n.km });
+        }
+        if (n.children) walk(n.children);
+      });
+    })(roots);
+  });
+  Object.entries(ALMACENES).forEach(([tallerNombre, almacen]) => {
+    (almacen.items[tipo] || []).forEach((it) => {
+      rows.push({ id: it.id, ubicacion: 'Taller', ubicacionNombre: tallerNombre, tipo: it.tipo, code: it.code, km: it.km });
+    });
+  });
+  return rows;
+}
+
 export type CellKind = 'text' | 'id' | 'bool' | 'km';
 
 export interface Cell {
@@ -216,12 +277,13 @@ export const id = (t: string, flex?: string) => cell(t, 'id', flex);
 export const bool = (flex?: string) => cell('En servicio', 'bool', flex);
 export const km = (t: string, flex?: string, updatedAt?: string) => cell(t, 'km', flex, updatedAt);
 
-// Deterministic "fecha de actualización" (down to the minute) for a km-cell tooltip — no
-// live clock, so the value stays stable between server and client render.
+// Deterministic "fecha de actualización" (down to the minute) for a cell tooltip — no live
+// clock, so the value stays stable between server and client render. Returns the full
+// tooltip text (Table renders `meta` verbatim).
 export function fechaActualizacion(seed: number): string {
   const d = new Date(2026, 7, 20 - (seed % 10), 8 + (seed % 12), (seed * 7) % 60);
   const p = (v: number) => String(v).padStart(2, '0');
-  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `Fecha de actualización: ${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 // Fixed column widths for the wide (per-coche) child table

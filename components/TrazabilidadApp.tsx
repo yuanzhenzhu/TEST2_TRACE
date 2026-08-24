@@ -35,9 +35,10 @@ import {
   Tipo,
   TreeNode,
   almacenHistorial,
+  buscarPorTipo,
   fechaActualizacion,
   find,
-  findByCode,
+  findAnywhereByCode,
   hijoRows as buildHijoRows,
   historial as buildHistorial,
   id as idCell,
@@ -46,7 +47,7 @@ import {
 } from '@/lib/data';
 
 interface AppState {
-  screen: 'consulta' | 'flota' | 'movimientos' | 'detalleMovimiento' | 'almacen';
+  screen: 'consulta' | 'flota' | 'movimientos' | 'detalleMovimiento' | 'almacen' | 'tipoComponente';
   expanded: Record<string, boolean>;
   selected: string | null;
   tab: number;
@@ -81,6 +82,17 @@ interface AppState {
   almacenSelectedId: string | null;
   almacenFilterOpen: boolean;
   almacenFilter: { conHijos: boolean; sinHijos: boolean; conPadre: boolean; sinPadre: boolean };
+  tcTipo: string;
+  tcDTipo: string;
+  tcChipsFlota: string[];
+  tcAppliedFlota: string[];
+  tcFlotaMenuOpen: boolean;
+  tcChipsTaller: string[];
+  tcAppliedTaller: string[];
+  tcTallerMenuOpen: boolean;
+  tcChipsActivo: string[];
+  tcAppliedActivo: string[];
+  tcActivoMenuOpen: boolean;
   almacenExpandedIds: Record<string, boolean>;
 }
 
@@ -121,6 +133,17 @@ const initialState: AppState = {
   almacenFilterOpen: false,
   almacenFilter: { conHijos: true, sinHijos: true, conPadre: true, sinPadre: true },
   almacenExpandedIds: {},
+  tcTipo: '',
+  tcDTipo: '',
+  tcChipsFlota: [],
+  tcAppliedFlota: [],
+  tcFlotaMenuOpen: false,
+  tcChipsTaller: [],
+  tcAppliedTaller: [],
+  tcTallerMenuOpen: false,
+  tcChipsActivo: [],
+  tcAppliedActivo: [],
+  tcActivoMenuOpen: false,
 };
 
 function Tooltip({ text, children }: { text: string; children: ReactNode }) {
@@ -253,7 +276,7 @@ function Table({
                 >
                   <span
                     style={{
-                      flex: '1 1 0',
+                      flex: '0 1 auto',
                       minWidth: 0,
                       fontSize: 14,
                       letterSpacing: '0.25px',
@@ -266,7 +289,7 @@ function Table({
                     {c.text}
                   </span>
                   {c.meta && (
-                    <Tooltip text={`Fecha de actualización: ${c.meta}`}>
+                    <Tooltip text={c.meta || ''}>
                       <span style={{ color: '#474554', display: 'flex', flexShrink: 0 }}>
                         <Icon name="Info" size={18} />
                       </span>
@@ -290,7 +313,7 @@ function Table({
                 >
                   <TagSemanticStatus status="Info" label={c.text} />
                   {c.meta && (
-                    <Tooltip text={`Fecha de actualización: ${c.meta}`}>
+                    <Tooltip text={c.meta || ''}>
                       <span style={{ color: '#474554', display: 'flex' }}>
                         <Icon name="Info" size={18} />
                       </span>
@@ -845,6 +868,8 @@ export default function TrazabilidadApp() {
   const isDetalleMovimiento = s.screen === 'detalleMovimiento';
   const detalleRow = s.detalleRowId ? MOVIMIENTOS.find((r) => r.id === s.detalleRowId) || null : null;
 
+  const isTipoComponente = s.screen === 'tipoComponente';
+
   const isAlmacen = s.screen === 'almacen';
   const almacenData = ALMACENES[s.almacen];
   const almacenFilterFn = (it: AlmacenItem) => {
@@ -1039,13 +1064,6 @@ export default function TrazabilidadApp() {
     { id: 'm1', cells: [txtCell('2025-06-30 08:20'), txtCell('Intercambio entre unidades'), txtCell('Sí'), txtCell('No')] },
   ];
 
-  const historialPopupNode = s.historialPopupCode ? findByCode(roots, s.historialPopupCode) : null;
-  const historialPopupAnc = ANCESTORS[(historialPopupNode?.tipo as Tipo) || 'Eje'] || [];
-  const historialPopupCols = (historialPopupAnc as string[])
-    .concat(['Fecha de montaje', 'Fecha de desmontaje', 'Kilometraje parcial'])
-    .map((label) => ({ label }));
-  const historialPopupRows = historialPopupNode ? buildHistorial(historialPopupNode) : [];
-
   // ---- atributos tab ----
   const activoOpts = ['Kilómetros', 'Ciclos', 'Horas', 'Fecha overhaul', 'Km overhaul', 'Modelo', 'Material'];
   const posOpts = ['Location', 'Visibility', 'CAF-Code', 'Aux_Posición', 'Knuckle'];
@@ -1071,7 +1089,7 @@ export default function TrazabilidadApp() {
 
   const appA = s.appliedActivo;
   const appP = s.appliedPos;
-  const EXTRA: Record<string, (n: TreeNode, i: number) => string> = {
+  const EXTRA: Record<string, (n: unknown, i: number) => string> = {
     Ciclos: (_n, i) => '1.' + (240 + i * 37),
     Horas: (_n, i) => (3180 + i * 54).toLocaleString('es-ES'),
     'Fecha overhaul': (_n, i) => {
@@ -1137,6 +1155,42 @@ export default function TrazabilidadApp() {
 
   const flotaOptions = ['Urbos 100', 'Zaragoza 3000'];
   const almacenOptions = Object.keys(ALMACENES);
+
+  const tcCanShow = (s.tcAppliedFlota.length > 0 || s.tcAppliedTaller.length > 0) && s.tcAppliedActivo.length > 0;
+  const tcRows = tcCanShow && s.tcTipo ? buscarPorTipo(s.tcTipo as Tipo) : [];
+  const tcFilteredRows = tcRows.filter((r) =>
+    r.ubicacion === 'Flota'
+      ? s.tcAppliedFlota.includes(r.ubicacionNombre)
+      : s.tcAppliedTaller.includes(r.ubicacionNombre)
+  );
+  const tcColsLabels = ['Ubicación', 'Tipo', 'ID'].concat(s.tcAppliedActivo);
+  const tcCols = tcColsLabels.map((label) => ({ label }));
+  const tcTableRows = tcFilteredRows.map((r, i) => ({
+    id: r.id,
+    cells: tcColsLabels.map((label) => {
+      if (label === 'Ubicación') return txtCell(r.ubicacionNombre);
+      if (label === 'Tipo') return txtCell(r.tipo);
+      if (label === 'ID') return idCell(r.code);
+      const seed = (Number(r.code) || i + 1) + label.length;
+      return txtCell(EXTRA[label] ? EXTRA[label](r, i) : '—', undefined, fechaActualizacion(seed));
+    }),
+  }));
+
+  const historialPopupHit = s.historialPopupCode ? findAnywhereByCode(s.historialPopupCode) : null;
+  const historialPopupTreeAnc = historialPopupHit?.kind === 'tree' ? ANCESTORS[historialPopupHit.node.tipo] || [] : [];
+  const historialPopupCols =
+    historialPopupHit?.kind === 'almacen'
+      ? [{ label: 'Unidad' }, { label: 'Coche' }, { label: 'Bogie' }, { label: 'Fecha de montaje' }, { label: 'Fecha de desmontaje' }, { label: 'Kilometraje parcial' }]
+      : (historialPopupTreeAnc as string[])
+          .concat(['Fecha de montaje', 'Fecha de desmontaje', 'Kilometraje parcial'])
+          .map((label) => ({ label }));
+  const historialPopupRows =
+    historialPopupHit?.kind === 'tree'
+      ? buildHistorial(historialPopupHit.node)
+      : historialPopupHit?.kind === 'almacen'
+      ? almacenHistorial(historialPopupHit.item)
+      : [];
+
   const unidadOptions = ['Todos'].concat(roots.map((n) => n.code));
   const treeTabs = ['Estructura', 'Tipo de componente'];
   const flotaDate = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -1439,8 +1493,21 @@ export default function TrazabilidadApp() {
                   </div>
                   <MatButtonTonal
                     label="Consultar por tipo de componente"
-                    disabled
-                    style={{ background: 'rgba(13,13,13,0.1)', color: 'rgba(24,23,28,0.38)' }}
+                    disabled={!s.dTipoComponente}
+                    onClick={() =>
+                      patch((prev) => ({
+                        screen: 'tipoComponente',
+                        tcTipo: prev.dTipoComponente,
+                        tcDTipo: prev.dTipoComponente,
+                        tcChipsFlota: [],
+                        tcAppliedFlota: [],
+                        tcChipsTaller: [],
+                        tcAppliedTaller: [],
+                        tcChipsActivo: [],
+                        tcAppliedActivo: [],
+                      }))
+                    }
+                    style={s.dTipoComponente ? undefined : { background: 'rgba(13,13,13,0.1)', color: 'rgba(24,23,28,0.38)' }}
                   />
                 </div>
               </div>
@@ -1839,46 +1906,6 @@ export default function TrazabilidadApp() {
               </div>
             </div>
           </div>
-
-          {s.historialPopupCode && (
-            <div
-              style={{
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(24,23,28,0.4)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                zIndex: 50,
-              }}
-              onClick={() => patch({ historialPopupCode: null })}
-            >
-              <div
-                style={{
-                  width: 720,
-                  maxHeight: '80vh',
-                  overflowY: 'auto',
-                  background: '#FFF',
-                  borderRadius: 16,
-                  padding: 24,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 16,
-                  boxSizing: 'border-box',
-                }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <span style={{ fontSize: 20, fontWeight: 500, color: '#18171C' }}>Histórico de este componente</span>
-                    <span style={{ fontSize: 14, color: '#474554' }}>{s.historialPopupCode}</span>
-                  </div>
-                  <MatButtonIcon icon="Close" title="Cerrar" onClick={() => patch({ historialPopupCode: null })} />
-                </div>
-                <Table cols={historialPopupCols} rows={historialPopupRows} />
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -2873,6 +2900,214 @@ export default function TrazabilidadApp() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {isTipoComponente && (
+        <div
+          data-screen-label="Consultar por tipo de componente"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 16,
+            padding: '24px 48px 40px 48px',
+            alignItems: 'stretch',
+            boxSizing: 'border-box',
+            flexGrow: 1,
+          }}
+        >
+          <Breadcrumb items={['Consultas', 'Consultar por tipo de componente']} showBack onBack={() => patch({ screen: 'consulta' })} />
+
+          <div
+            style={{
+              borderRadius: 8,
+              background: '#FFF',
+              display: 'flex',
+              flexDirection: 'row',
+              gap: 16,
+              padding: 16,
+              alignItems: 'center',
+              boxSizing: 'border-box',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center', flexGrow: 1 }}>
+              <MatSelect
+                label="Tipo de componente"
+                value={s.tcDTipo || 'Seleccionar'}
+                options={TIPOS_COMPONENTE}
+                width={250}
+                onSelect={(v) => patch({ tcDTipo: v })}
+              />
+            </div>
+            <MatButtonTonal
+              label="Aplicar"
+              onClick={() =>
+                patch((prev) => ({
+                  tcTipo: prev.tcDTipo,
+                  tcChipsFlota: [],
+                  tcAppliedFlota: [],
+                  tcChipsTaller: [],
+                  tcAppliedTaller: [],
+                  tcChipsActivo: [],
+                  tcAppliedActivo: [],
+                }))
+              }
+            />
+          </div>
+
+          <div
+            style={{
+              borderRadius: 8,
+              background: '#FFF',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 24,
+              padding: 16,
+              boxSizing: 'border-box',
+              flexGrow: 1,
+            }}
+          >
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <AtributoChipField
+                label="Flota"
+                chips={s.tcChipsFlota}
+                options={flotaOptions}
+                empty={s.tcChipsFlota.length === 0}
+                menuOpen={s.tcFlotaMenuOpen}
+                chipColor="#E5E3EC"
+                chipText="#18171C"
+                closeColor="#474554"
+                onToggleChip={(label) =>
+                  patch((prev) => ({
+                    tcChipsFlota: prev.tcChipsFlota.includes(label)
+                      ? prev.tcChipsFlota.filter((c) => c !== label)
+                      : prev.tcChipsFlota.concat([label]),
+                  }))
+                }
+                onToggleMenu={() =>
+                  patch((prev) => ({ tcFlotaMenuOpen: !prev.tcFlotaMenuOpen, tcTallerMenuOpen: false, tcActivoMenuOpen: false }))
+                }
+              />
+              <AtributoChipField
+                label="Taller"
+                chips={s.tcChipsTaller}
+                options={almacenOptions}
+                empty={s.tcChipsTaller.length === 0}
+                menuOpen={s.tcTallerMenuOpen}
+                chipColor="#D7E3FF"
+                chipText="#0B3A8C"
+                closeColor="#0B3A8C"
+                onToggleChip={(label) =>
+                  patch((prev) => ({
+                    tcChipsTaller: prev.tcChipsTaller.includes(label)
+                      ? prev.tcChipsTaller.filter((c) => c !== label)
+                      : prev.tcChipsTaller.concat([label]),
+                  }))
+                }
+                onToggleMenu={() =>
+                  patch((prev) => ({ tcTallerMenuOpen: !prev.tcTallerMenuOpen, tcFlotaMenuOpen: false, tcActivoMenuOpen: false }))
+                }
+              />
+              <AtributoChipField
+                label="Atributo activo"
+                chips={s.tcChipsActivo}
+                options={activoOpts}
+                empty={s.tcChipsActivo.length === 0}
+                menuOpen={s.tcActivoMenuOpen}
+                chipColor="#E5E3EC"
+                chipText="#18171C"
+                closeColor="#474554"
+                onToggleChip={(label) =>
+                  patch((prev) => ({
+                    tcChipsActivo: prev.tcChipsActivo.includes(label)
+                      ? prev.tcChipsActivo.filter((c) => c !== label)
+                      : prev.tcChipsActivo.concat([label]),
+                  }))
+                }
+                onToggleMenu={() =>
+                  patch((prev) => ({ tcActivoMenuOpen: !prev.tcActivoMenuOpen, tcFlotaMenuOpen: false, tcTallerMenuOpen: false }))
+                }
+              />
+              <div style={{ display: 'flex', alignItems: 'center', minHeight: 56 }}>
+                <MatButtonTonal
+                  label="Aplicar"
+                  onClick={() =>
+                    patch((prev) => ({
+                      tcAppliedFlota: prev.tcChipsFlota.slice(),
+                      tcAppliedTaller: prev.tcChipsTaller.slice(),
+                      tcAppliedActivo: prev.tcChipsActivo.slice(),
+                      tcFlotaMenuOpen: false,
+                      tcTallerMenuOpen: false,
+                      tcActivoMenuOpen: false,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <span style={{ fontWeight: 500, fontSize: 16, lineHeight: '25px', letterSpacing: '0.15px', color: '#18171C' }}>
+                Atributos de activo
+              </span>
+              {!tcCanShow ? (
+                <EmptyState
+                  icon="Component"
+                  text="Elige al menos una flota o un taller, y un atributo activo, y pulsa Aplicar"
+                  width="100%"
+                  height={168}
+                />
+              ) : tcTableRows.length === 0 ? (
+                <EmptyState icon="Component" text="No se han encontrado componentes de este tipo" width="100%" height={168} />
+              ) : (
+                <Table cols={tcCols} rows={tcTableRows} onIdInfoClick={(code) => patch({ historialPopupCode: code })} />
+              )}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <MatButtonOutlined label="Descargar" icon="Download" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {s.historialPopupCode && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(24,23,28,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+          }}
+          onClick={() => patch({ historialPopupCode: null })}
+        >
+          <div
+            style={{
+              width: 720,
+              maxHeight: '80vh',
+              overflowY: 'auto',
+              background: '#FFF',
+              borderRadius: 16,
+              padding: 24,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 16,
+              boxSizing: 'border-box',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <span style={{ fontSize: 20, fontWeight: 500, color: '#18171C' }}>Histórico de este componente</span>
+                <span style={{ fontSize: 14, color: '#474554' }}>{s.historialPopupCode}</span>
+              </div>
+              <MatButtonIcon icon="Close" title="Cerrar" onClick={() => patch({ historialPopupCode: null })} />
+            </div>
+            <Table cols={historialPopupCols} rows={historialPopupRows} />
+          </div>
         </div>
       )}
     </div>

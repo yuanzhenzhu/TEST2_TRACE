@@ -1,5 +1,6 @@
 'use client';
 
+import type { ComponentType, CSSProperties } from 'react';
 import {
   ChevronDown,
   ChevronRight,
@@ -37,7 +38,18 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 
-const MAP: Record<string, LucideIcon> = {
+function Widgets({ size = 20, style }: { size?: number | string; style?: CSSProperties }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden focusable={false} style={style}>
+      <path
+        d="M16.66 4.52043L19.49 7.35043L16.66 10.1804L13.83 7.35043L16.66 4.52043ZM9 5.00043V9.00043H5V5.00043H9ZM19 15.0004V19.0004H15V15.0004H19ZM9 15.0004V19.0004H5V15.0004H9ZM16.66 1.69043L11 7.34043L16.66 13.0004L22.32 7.34043L16.66 1.69043ZM11 3.00043H3V11.0004H11V3.00043ZM21 13.0004H13V21.0004H21V13.0004ZM11 13.0004H3V21.0004H11V13.0004Z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+const MAP: Record<string, ComponentType<any>> = {
   ArrowDropDown: ChevronDown,
   ChevronRight: ChevronRight,
   ChevronLeft: ChevronLeft,
@@ -72,6 +84,7 @@ const MAP: Record<string, LucideIcon> = {
   UnfoldLess: ChevronsDownUp,
   List: List,
   Component: Component,
+  Widgets: Widgets,
 };
 
 export function Icon({ name, size = 20 }: { name: string; size?: number }) {

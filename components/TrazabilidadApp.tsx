@@ -58,6 +58,8 @@ interface AppState {
   unidad: string | null;
   applied: boolean;
   dUnidad: string;
+  flotaBuscar: string;
+  flotaSearchAt: string;
   hijo: string;
   chipsActivo: string[];
   chipsPos: string[];
@@ -108,6 +110,8 @@ const initialState: AppState = {
   unidad: null,
   applied: false,
   dUnidad: '',
+  flotaBuscar: '',
+  flotaSearchAt: '',
   hijo: 'Ruedas',
   chipsActivo: ['Kilómetros'],
   chipsPos: [],
@@ -145,6 +149,11 @@ const initialState: AppState = {
   tcAppliedActivo: [],
   tcActivoMenuOpen: false,
 };
+
+function formatFechaHora(d: Date): string {
+  const p = (v: number) => String(v).padStart(2, '0');
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 
 function Tooltip({ text, children }: { text: string; children: ReactNode }) {
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
@@ -898,13 +907,36 @@ export default function TrazabilidadApp() {
     return out;
   };
 
-  const treeRows = flatten().map((n) => ({
+  const flattenAll = (): TreeNode[] => {
+    const out: TreeNode[] = [];
+    const walk = (nodes: TreeNode[]) => {
+      for (const n of nodes) {
+        out.push(n);
+        if (n.children && n.children.length) walk(n.children);
+      }
+    };
+    walk(treeRoots);
+    return out;
+  };
+
+  const flotaBuscarQ = s.flotaBuscar.trim().toLowerCase();
+  const treeSearchActive = flotaBuscarQ.length > 0;
+  const treeSourceNodes = treeSearchActive
+    ? flattenAll().filter(
+        (n) =>
+          (n.tipo || '').toLowerCase().includes(flotaBuscarQ) ||
+          (n.label || '').toLowerCase().includes(flotaBuscarQ) ||
+          (n.code || '').toLowerCase().includes(flotaBuscarQ)
+      )
+    : flatten();
+
+  const treeRows = treeSourceNodes.map((n) => ({
     id: n.id,
     label: n.label,
     code: n.code,
-    depth: n.depth,
+    depth: treeSearchActive ? 0 : n.depth,
     state: (s.checkedIds[n.id] ? 'Selected' : 'Default') as 'Selected' | 'Default',
-    expanded: !!s.expanded[n.id],
+    expanded: treeSearchActive ? false : !!s.expanded[n.id],
     trailing: <TagSemanticStatus status="Info" label={n.km} />,
     onClick: (e: MouseEvent) => {
       if (e.ctrlKey || e.metaKey) {
@@ -923,17 +955,27 @@ export default function TrazabilidadApp() {
       }
       patch({ selected: n.id, checkedIds: { [n.id]: true }, tab: 0 });
     },
-    onToggleExpand: () => {
-      if (!n.children || !n.children.length) return;
-      patch((prev) => ({ expanded: { ...prev.expanded, [n.id]: !prev.expanded[n.id] } }));
-    },
+    onToggleExpand: treeSearchActive
+      ? undefined
+      : () => {
+          if (!n.children || !n.children.length) return;
+          patch((prev) => ({ expanded: { ...prev.expanded, [n.id]: !prev.expanded[n.id] } }));
+        },
   }));
 
   const typeGroups: Record<string, TreeNode[]> = { Unidad: [], Coche: [], Bogie: [], Eje: [], Rueda: [], Reductora: [] };
   (function walkTypes(nodes: TreeNode[]) {
     nodes.forEach((n) => {
       const t = n.tipo || 'Eje';
-      if (typeGroups[t]) typeGroups[t].push(n);
+      if (
+        typeGroups[t] &&
+        (!treeSearchActive ||
+          t.toLowerCase().includes(flotaBuscarQ) ||
+          (n.label || '').toLowerCase().includes(flotaBuscarQ) ||
+          (n.code || '').toLowerCase().includes(flotaBuscarQ))
+      ) {
+        typeGroups[t].push(n);
+      }
       if (n.children) walkTypes(n.children);
     });
   })(treeRoots);
@@ -943,7 +985,7 @@ export default function TrazabilidadApp() {
     label: string;
     isChild: boolean;
     chevron: string | null;
-    checked: boolean;
+    checked: boolean | 'indeterminate';
     pos: string;
     trailing: ReactNode;
     onClick?: () => void;
@@ -955,12 +997,13 @@ export default function TrazabilidadApp() {
     const list = typeGroups[t];
     if (!list.length) return;
     const open = !!s.typeOpen[t];
+    const checkedCount = list.filter((n) => s.checkedIds[n.id]).length;
     typeRows.push({
       id: 'g-' + t,
       label: t,
       isChild: false,
       chevron: open ? 'ExpandMore' : 'ChevronRight',
-      checked: list.every((n) => s.checkedIds[n.id]),
+      checked: checkedCount === 0 ? false : checkedCount === list.length ? true : 'indeterminate',
       pos: '',
       trailing: (
         <span
@@ -1193,7 +1236,6 @@ export default function TrazabilidadApp() {
 
   const unidadOptions = ['Todos'].concat(roots.map((n) => n.code));
   const treeTabs = ['Estructura', 'Tipo de componente'];
-  const flotaDate = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const shortcutCards = [
     { title: 'Movimientos', body: 'Texto descriptivo acerca de Movimientos' },
     { title: 'Talleres', body: 'Texto descriptivo acerca de Información de talleres' },
@@ -1226,8 +1268,15 @@ export default function TrazabilidadApp() {
         }}
       >
         <div style={{ display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'center', height: 28 }}>
-          <Image src="/assets/logo-caf.svg" alt="CAF" width={61} height={24} />
-          <PiecesNavbarItemGroup items={['Consultar', 'Operaciones', 'Registro', 'Sincronización RFID']} selected={0} />
+          <Image
+            src="/assets/logo-caf.svg"
+            alt="CAF"
+            width={61}
+            height={24}
+            style={{ cursor: 'pointer' }}
+            onClick={() => patch({ screen: 'consulta' })}
+          />
+          <PiecesNavbarItemGroup items={['Consultas', 'Operaciones', 'Registro']} selected={0} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'row', gap: 4, alignItems: 'center', alignSelf: 'stretch' }}>
           <PiecesNavbarSelector value="ES" />
@@ -1334,6 +1383,8 @@ export default function TrazabilidadApp() {
                         dUnidad: '',
                         checkedIds: {},
                         typeOpen: {},
+                        flotaBuscar: '',
+                        flotaSearchAt: '',
                       })
                     }
                   />
@@ -1388,8 +1439,8 @@ export default function TrazabilidadApp() {
                     onClick={() =>
                       patch({
                         screen: 'almacen',
-                        dAlmacen: '',
-                        almacenApplied: false,
+                        dAlmacen: s.almacen,
+                        almacenApplied: true,
                         almacenExpandedTipos: {},
                         almacenCheckedIds: {},
                         almacenSelectedId: null,
@@ -1463,7 +1514,7 @@ export default function TrazabilidadApp() {
               >
                 <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                   <span style={{ color: '#18171C', display: 'flex' }}>
-                    <Icon name="Component" size={24} />
+                    <Icon name="Widgets" size={24} />
                   </span>
                   <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Tipo de componente</span>
                 </div>
@@ -1588,7 +1639,8 @@ export default function TrazabilidadApp() {
             </div>
             <MatButtonTonal
               label="Aplicar"
-              onClick={() =>
+              onClick={() => {
+                const searchAt = formatFechaHora(new Date());
                 patch((prev) => ({
                   applied: true,
                   unidad: prev.dUnidad || 'Todos',
@@ -1597,8 +1649,10 @@ export default function TrazabilidadApp() {
                   expanded: {},
                   checkedIds: {},
                   typeOpen: {},
-                }))
-              }
+                  flotaBuscar: '',
+                  flotaSearchAt: searchAt,
+                }));
+              }}
             />
           </div>
 
@@ -1620,12 +1674,16 @@ export default function TrazabilidadApp() {
                 <MatTabs tabs={treeTabs} selected={s.treeTab} onSelect={(i) => patch({ treeTab: i })} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', padding: 24, gap: 24, boxSizing: 'border-box', flex: '1 1 auto', minHeight: 0, overflowY: 'auto' }}>
-                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'flex-start' }}>
+                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                    <MatFormField label="Buscar" width="100%" value={s.flotaBuscar} onChange={(v) => patch({ flotaBuscar: v })} />
+                  </div>
                   <div
                     style={{
                       position: 'relative',
                       height: 40,
-                      flex: '1 1 0',
+                      width: 220,
+                      flexShrink: 0,
                       display: 'flex',
                       alignItems: 'center',
                       padding: '0 4px 0 16px',
@@ -1650,12 +1708,11 @@ export default function TrazabilidadApp() {
                     >
                       Fecha
                     </span>
-                    <span style={{ flex: 1, fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#18171C' }}>{flotaDate}</span>
+                    <span style={{ flex: 1, fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#18171C', whiteSpace: 'nowrap' }}>
+                      {s.flotaSearchAt || '-'}
+                    </span>
                     <MatButtonIcon icon="CalendarMonth" title="Elegir fecha" />
                   </div>
-                  {s.treeTab === 0 && (
-                    <MatButtonText label="Descargar arbol" icon="Download" style={{ padding: '6px 8px', height: 32, flexShrink: 0 }} />
-                  )}
                 </div>
 
                 {emptyFleet && <EmptyState icon="AccountTree" text="Esta flota no tiene datos cargados" width="100%" height={168} />}
@@ -1723,6 +1780,9 @@ export default function TrazabilidadApp() {
                       <div style={{ flexShrink: 0 }}>{row.trailing}</div>
                     </div>
                   ))}
+                {showTree && (
+                  <MatButtonText label="Descargar arbol" icon="Download" style={{ padding: '6px 8px', height: 32, alignSelf: 'flex-start' }} />
+                )}
               </div>
             </div>
 
@@ -1749,7 +1809,7 @@ export default function TrazabilidadApp() {
                 </div>
               )}
 
-              {!multi && sel && (
+              {!multi && (
                 <div
                   style={{
                     height: 84,
@@ -1765,19 +1825,26 @@ export default function TrazabilidadApp() {
                   }}
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flexShrink: 0 }}>
-                    <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#000', whiteSpace: 'nowrap' }}>{sel.label}</span>
-                    <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554', whiteSpace: 'nowrap' }}>{sel.code}</span>
+                    <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#000', whiteSpace: 'nowrap' }}>
+                      {sel ? sel.label : 'Sin selección'}
+                    </span>
+                    <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554', whiteSpace: 'nowrap' }}>
+                      {sel ? sel.code : '-'}
+                    </span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'row', gap: 32, justifyContent: 'flex-end', alignItems: 'center', flexGrow: 1 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', flexShrink: 0 }}>
                       <span style={{ fontWeight: 500, fontSize: 11, lineHeight: '16px', letterSpacing: '0.5px', color: '#474554' }}>Kilómetros</span>
-                      <TagSemanticStatus status="Info" label={sel.km} />
+                      {sel ? <TagSemanticStatus status="Info" label={sel.km} /> : <span style={{ color: '#18171C' }}>-</span>}
                     </div>
-                    {[
-                      { title: 'Tipo', value: sel.tipo || 'Eje' },
-                      { title: 'GMAO', value: sel.gmao || '\u2014' },
-                      { title: 'Tag', value: sel.tag || '\u2014' },
-                    ].map((m) => (
+                    {(sel
+                      ? [
+                          { title: 'Tipo', value: sel.tipo || '-' },
+                          { title: 'GMAO', value: sel.gmao || '-' },
+                          { title: 'Tag', value: sel.tag || '-' },
+                        ]
+                      : [{ title: 'Tipo', value: '-' }]
+                    ).map((m) => (
                       <div key={m.title} style={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start', flexShrink: 0 }}>
                         <span style={{ fontWeight: 500, fontSize: 11, lineHeight: '16px', letterSpacing: '0.5px', color: '#474554' }}>{m.title}</span>
                         <span style={{ fontSize: 16, lineHeight: '25px', letterSpacing: '0.5px', color: '#18171C', whiteSpace: 'nowrap' }}>{m.value}</span>

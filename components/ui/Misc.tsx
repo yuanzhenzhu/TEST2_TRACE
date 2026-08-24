@@ -77,7 +77,14 @@ export function MatFormField({
   );
 }
 
-export function MatCheckbox({ checked, onChange }: { checked?: boolean; onChange?: () => void }) {
+export function MatCheckbox({
+  checked,
+  onChange,
+}: {
+  checked?: boolean | 'indeterminate';
+  onChange?: () => void;
+}) {
+  const filled = checked === true || checked === 'indeterminate';
   return (
     <button
       type="button"
@@ -85,7 +92,7 @@ export function MatCheckbox({ checked, onChange }: { checked?: boolean; onChange
         e.stopPropagation();
         onChange?.();
       }}
-      aria-pressed={!!checked}
+      aria-pressed={checked === true}
       style={{
         width: 40,
         height: 40,
@@ -103,14 +110,16 @@ export function MatCheckbox({ checked, onChange }: { checked?: boolean; onChange
           width: 18,
           height: 18,
           borderRadius: 2,
-          border: checked ? 'none' : '2px solid #77728D',
-          background: checked ? '#2B1C74' : 'transparent',
+          border: filled ? 'none' : '2px solid #77728D',
+          background: filled ? '#2B1C74' : 'transparent',
+          color: '#FFF',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
         }}
       >
-        {checked && <Icon name="Check" size={14} />}
+        {checked === true && <Icon name="Check" size={14} />}
+        {checked === 'indeterminate' && <Icon name="Remove" size={14} />}
       </span>
     </button>
   );
@@ -312,8 +321,8 @@ export function PiecesNavbarItemGroup({ items, selected }: { items: string[]; se
             alignItems: 'center',
             borderRadius: 100,
             fontSize: 14,
-            fontWeight: 500,
-            letterSpacing: '0.1px',
+            fontWeight: i === selected ? 500 : 400,
+            letterSpacing: '0.25px',
             color: i === selected ? '#FFF' : '#18171C',
             background: i === selected ? '#2B1C74' : 'transparent',
             cursor: 'pointer',

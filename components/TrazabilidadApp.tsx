@@ -44,6 +44,10 @@ import {
   id as idCell,
   km as kmCell,
   txt as txtCell,
+  W_DESDE,
+  W_HASTA,
+  W_ID,
+  W_DRIVER,
 } from '@/lib/data';
 
 interface AppState {
@@ -206,7 +210,7 @@ function Table({
   minWidth,
   onIdInfoClick,
 }: {
-  cols: { label: string; sortableActive?: boolean }[];
+  cols: { label: string; sortableActive?: boolean; flex?: string }[];
   rows: { id: string; cells: Cell[] }[];
   minWidth?: number;
   onIdInfoClick?: (code: string) => void;
@@ -215,7 +219,7 @@ function Table({
     <div style={{ display: 'flex', flexDirection: 'column', minWidth }}>
       <div style={{ display: 'flex', flexDirection: 'row' }}>
         {cols.map((col, i) => (
-          <div key={i} style={{ flex: '1 1 0', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
+          <div key={i} style={{ flex: col.flex || '1 1 0', minWidth: 0, display: 'flex', overflow: 'hidden' }}>
             <MatCellIndexColStatic label={col.label} />
           </div>
         ))}
@@ -334,12 +338,14 @@ function Table({
                 <div
                   style={{
                     flex: '1 1 0',
+                    minWidth: 0,
                     minHeight: 48,
                     display: 'flex',
                     alignItems: 'center',
                     padding: '4px 8px',
                     borderBottom: '1px solid #C8C7D1',
                     boxSizing: 'border-box',
+                    overflow: 'hidden',
                     background: '#FFF',
                   }}
                 >
@@ -1083,11 +1089,15 @@ export default function TrazabilidadApp() {
   const histRows = buildHistorial(sel);
 
   const hijoIsLeftRight = hijoSing === 'Rueda' || hijoSing === 'Reductora';
+  const cocheCount = Math.max(1, (sel?.children || []).length);
   const hijoCols =
     hijoValue === 'Coches'
-      ? ([{ label: 'Fecha desde' }, { label: 'Fecha hasta' }] as { label: string }[]).concat(
-          [1, 2, 3, 4, 5].reduce<{ label: string }[]>(
-            (acc, i) => acc.concat([{ label: 'Coche ' + i }, { label: 'Kilómetros' }]),
+      ? ([{ label: 'Fecha desde', flex: W_DESDE }, { label: 'Fecha hasta', flex: W_HASTA }] as {
+          label: string;
+          flex: string;
+        }[]).concat(
+          Array.from({ length: cocheCount }, (_, i) => i + 1).reduce<{ label: string; flex: string }[]>(
+            (acc, i) => acc.concat([{ label: 'Coche ' + i, flex: W_ID }, { label: 'Kilómetros', flex: W_DRIVER }]),
             []
           )
         )
@@ -1099,7 +1109,7 @@ export default function TrazabilidadApp() {
           hijoIsLeftRight ? hijoSing + ' derecha' : hijosChildren[1]?.label || hijoSing + ' 2',
           'Kilómetros',
         ].map((label) => ({ label }));
-  const hijoMinWidth = hijoValue === 'Coches' ? 1750 : undefined;
+  const hijoMinWidth = hijoValue === 'Coches' ? Math.round((2 + cocheCount * 2) * (1750 / 12)) : undefined;
   const hijoRowsData = buildHijoRows(sel, hijoValue);
 
   const movHistCols = [{ label: 'Fecha' }, { label: 'Tipo' }, { label: 'Con padre' }, { label: 'Con hijos' }];

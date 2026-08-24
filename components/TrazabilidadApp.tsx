@@ -29,16 +29,21 @@ import {
   FLEETS,
   HIJOS,
   MOVIMIENTOS,
+  MovimientoRow,
   SING,
+  TALLERES_SEED,
+  TallerInfo,
   TIPOS_COMPONENTE,
   TIPOS_OPERACION,
   Tipo,
   TreeNode,
+  USOS_TALLER,
   almacenHistorial,
   buscarPorTipo,
   fechaActualizacion,
   find,
   findAnywhereByCode,
+  findCodePath,
   hijoRows as buildHijoRows,
   historial as buildHistorial,
   id as idCell,
@@ -51,7 +56,7 @@ import {
 } from '@/lib/data';
 
 interface AppState {
-  screen: 'consulta' | 'flota' | 'movimientos' | 'detalleMovimiento' | 'almacen' | 'tipoComponente';
+  screen: 'consulta' | 'flota' | 'movimientos' | 'detalleMovimiento' | 'almacen' | 'tipoComponente' | 'talleres';
   expanded: Record<string, boolean>;
   selected: string | null;
   tab: number;
@@ -77,15 +82,20 @@ interface AppState {
   movTipoOperacion: string;
   movBuscarId: string;
   movMenuOpenId: string | null;
+  movPage: number;
+  movPageSize: number;
   detalleRowId: string | null;
   soloIntercambiados: boolean;
   almacen: string;
   dAlmacen: string;
   dTipoComponente: string;
+  dNumeroSerie: string;
+  numeroSerieNotFound: string | null;
   almacenApplied: boolean;
   almacenExpandedTipos: Record<string, boolean>;
   almacenCheckedIds: Record<string, boolean>;
   almacenSelectedId: string | null;
+  almacenBuscar: string;
   almacenFilterOpen: boolean;
   almacenFilter: { conHijos: boolean; sinHijos: boolean; conPadre: boolean; sinPadre: boolean };
   tcTipo: string;
@@ -99,7 +109,21 @@ interface AppState {
   tcChipsActivo: string[];
   tcAppliedActivo: string[];
   tcActivoMenuOpen: boolean;
+  tcPage: number;
+  tcPageSize: number;
   almacenExpandedIds: Record<string, boolean>;
+  talleres: TallerInfo[];
+  tallerPage: number;
+  tallerPageSize: number;
+  tallerMenuOpenId: string | null;
+  tallerModalMode: 'add' | 'edit' | null;
+  tallerModalEditId: string | null;
+  tallerFormNombre: string;
+  tallerFormUbicacion: string;
+  tallerFormContacto: string;
+  tallerFormTelefono: string;
+  tallerFormUso: string[];
+  tallerFormUsoMenuOpen: boolean;
 }
 
 const initialState: AppState = {
@@ -129,18 +153,35 @@ const initialState: AppState = {
   movTipoOperacion: '',
   movBuscarId: '',
   movMenuOpenId: null,
+  movPage: 1,
+  movPageSize: 25,
   detalleRowId: null,
   soloIntercambiados: false,
   almacen: 'Taller Stock Urbos 100',
   dAlmacen: '',
   dTipoComponente: '',
+  dNumeroSerie: '',
+  numeroSerieNotFound: null,
   almacenApplied: false,
   almacenExpandedTipos: {},
   almacenCheckedIds: {},
   almacenSelectedId: null,
+  almacenBuscar: '',
   almacenFilterOpen: false,
   almacenFilter: { conHijos: true, sinHijos: true, conPadre: true, sinPadre: true },
   almacenExpandedIds: {},
+  talleres: TALLERES_SEED,
+  tallerPage: 1,
+  tallerPageSize: 25,
+  tallerMenuOpenId: null,
+  tallerModalMode: null,
+  tallerModalEditId: null,
+  tallerFormNombre: '',
+  tallerFormUbicacion: '',
+  tallerFormContacto: '',
+  tallerFormTelefono: '',
+  tallerFormUso: [],
+  tallerFormUsoMenuOpen: false,
   tcTipo: '',
   tcDTipo: '',
   tcChipsFlota: [],
@@ -152,6 +193,8 @@ const initialState: AppState = {
   tcChipsActivo: [],
   tcAppliedActivo: [],
   tcActivoMenuOpen: false,
+  tcPage: 1,
+  tcPageSize: 25,
 };
 
 function formatFechaHora(d: Date): string {
@@ -204,16 +247,70 @@ function Tooltip({ text, children }: { text: string; children: ReactNode }) {
   );
 }
 
+function Paginator({
+  page,
+  pageSize,
+  total,
+  pageSizeOptions,
+  onPageChange,
+  onPageSizeChange,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  pageSizeOptions: number[];
+  onPageChange: (page: number) => void;
+  onPageSizeChange: (size: number) => void;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const clampedPage = Math.min(Math.max(1, page), totalPages);
+  const start = total === 0 ? 0 : (clampedPage - 1) * pageSize + 1;
+  const end = Math.min(clampedPage * pageSize, total);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 24, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px', color: '#18171C' }}>Elementos por página</span>
+      <MatSelect
+        label=""
+        value={String(pageSize)}
+        options={pageSizeOptions.map(String)}
+        width={84}
+        onSelect={(v) => onPageSizeChange(Number(v))}
+      />
+      <span style={{ fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px', color: '#18171C', whiteSpace: 'nowrap' }}>
+        {start} - {end} de {total}
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <MatButtonIcon icon="FirstPage" title="Primera página" disabled={clampedPage <= 1} onClick={() => onPageChange(1)} />
+        <MatButtonIcon
+          icon="ChevronLeft"
+          title="Página anterior"
+          disabled={clampedPage <= 1}
+          onClick={() => onPageChange(Math.max(1, clampedPage - 1))}
+        />
+        <MatButtonIcon
+          icon="ChevronRight"
+          title="Página siguiente"
+          disabled={clampedPage >= totalPages}
+          onClick={() => onPageChange(Math.min(totalPages, clampedPage + 1))}
+        />
+        <MatButtonIcon icon="LastPage" title="Última página" disabled={clampedPage >= totalPages} onClick={() => onPageChange(totalPages)} />
+      </div>
+    </div>
+  );
+}
+
 function Table({
   cols,
   rows,
   minWidth,
   onIdInfoClick,
+  showIdInfo = true,
 }: {
   cols: { label: string; sortableActive?: boolean; flex?: string }[];
   rows: { id: string; cells: Cell[] }[];
   minWidth?: number;
   onIdInfoClick?: (code: string) => void;
+  showIdInfo?: boolean;
 }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minWidth }}>
@@ -256,6 +353,7 @@ function Table({
                   >
                     {c.text}
                   </span>
+                  {showIdInfo && (
                   <span
                     onClick={(e) => {
                       e.stopPropagation();
@@ -270,6 +368,7 @@ function Table({
                   >
                     <Icon name="Info" size={18} />
                   </span>
+                  )}
                 </div>
               )}
               {c.isText && (
@@ -456,6 +555,7 @@ interface DetailRow {
   highlighted?: boolean;
   extra?: string;
   km: string;
+  showRotate?: boolean;
 }
 
 const TAG_ANTES: Omit<DetailTag, 'label'> = { bg: '#FECAC8', fg: '#320301' };
@@ -552,6 +652,122 @@ const TALLER_TREE: DetailRow[] = [
   },
   { id: 't-b1-e2', depth: 3, label: 'Eje 2', code: 'F462-U-001-C1-B1-E2', expandIcon: 'ChevronRight', km: '259.245km' },
 ];
+
+// Builds the two detail trees for an "Intercambio entre unidad y taller" row from the REAL
+// FLEETS data (Unidad > Coche > Bogie > Eje > Rueda), instead of the static mock above —
+// row.antes/despues already carry real codes (see MOVIMIENTOS_BASE).
+function buildIntercambioUnidadTallerTrees(
+  row: MovimientoRow,
+  soloIntercambiados: boolean
+): { unidadRows: DetailRow[]; tallerRows: DetailRow[]; unidadLabel: string; tallerLabel: string; rotatedCount: number } | null {
+  const unidadAntes = row.antes[0];
+  const tallerAntes = row.antes[1];
+  const unidadDespues = row.despues[0];
+  const tallerDespues = row.despues[1];
+  if (!unidadAntes || !tallerAntes || !unidadDespues || !tallerDespues) return null;
+
+  let path: TreeNode[] | null = null;
+  let roots: TreeNode[] = [];
+  for (const flotaRoots of Object.values(FLEETS)) {
+    path = findCodePath(flotaRoots, unidadAntes.code);
+    if (path) {
+      roots = flotaRoots;
+      break;
+    }
+  }
+  if (!path || path.length === 0) return null;
+
+  const eje = path[path.length - 1];
+  const bogie = path.length >= 2 ? path[path.length - 2] : undefined;
+  const coche = path.length >= 3 ? path[path.length - 3] : undefined;
+  const unidad = path[0];
+  const ruedas = (eje.children || []).filter((c) => c.tipo === 'Rueda');
+
+  const tagsUnidad = [
+    { label: unidadAntes.code, ...TAG_ANTES },
+    { label: unidadDespues.code, ...TAG_DESPUES },
+  ];
+  const tagsTaller = [
+    { label: tallerAntes.code, ...TAG_ANTES },
+    { label: tallerDespues.code, ...TAG_DESPUES },
+  ];
+
+  const unidadRows: DetailRow[] = [
+    { id: 'u', depth: 0, label: 'Unidad', code: unidad.code, expandIcon: 'ExpandMore', km: unidad.km },
+  ];
+  if (coche) unidadRows.push({ id: 'c', depth: 1, label: coche.label, code: coche.code, expandIcon: 'ExpandMore', km: coche.km });
+  if (bogie) unidadRows.push({ id: 'b', depth: 2, label: bogie.label, code: bogie.code, expandIcon: 'ExpandMore', km: bogie.km });
+  unidadRows.push({
+    id: 'e',
+    depth: coche || bogie ? 3 : 1,
+    label: eje.label,
+    tags: tagsUnidad,
+    expandIcon: ruedas.length ? 'ExpandMore' : null,
+    highlighted: true,
+    extra: ruedas.length ? `${ruedas.length} activos` : undefined,
+    km: eje.km,
+  });
+  const ejeDepth = unidadRows[unidadRows.length - 1].depth;
+  ruedas.forEach((rueda, i) => {
+    unidadRows.push({ id: 'r' + i, depth: ejeDepth + 1, label: rueda.label, tags: tagsUnidad, expandIcon: null, highlighted: true, km: rueda.km });
+  });
+  if (bogie) {
+    (bogie.children || [])
+      .filter((sib) => sib.tipo === 'Eje' && sib.id !== eje.id)
+      .forEach((sib, i) => unidadRows.push({ id: 'sib-e' + i, depth: ejeDepth, label: sib.label, code: sib.code, expandIcon: 'ChevronRight', km: sib.km }));
+  }
+  if (coche) {
+    (coche.children || [])
+      .filter((sib) => sib.tipo === 'Bogie' && sib.id !== bogie?.id)
+      .forEach((sib, i) => unidadRows.push({ id: 'sib-b' + i, depth: ejeDepth - 1, label: sib.label, code: sib.code, expandIcon: 'ChevronRight', km: sib.km }));
+  }
+  if (unidad.children) {
+    unidad.children
+      .filter((sib) => sib.tipo === 'Coche' && sib.id !== coche?.id)
+      .forEach((sib, i) => unidadRows.push({ id: 'sib-c' + i, depth: 1, label: sib.label, code: sib.code, expandIcon: 'ChevronRight', km: sib.km }));
+  }
+  roots
+    .filter((sib) => sib.id !== unidad.id)
+    .forEach((sib, i) => unidadRows.push({ id: 'sib-u' + i, depth: 0, label: sib.label, code: sib.code, expandIcon: 'ChevronRight', km: sib.km }));
+
+  const tallerRows: DetailRow[] = [
+    {
+      id: 't-e',
+      depth: 0,
+      label: eje.label,
+      tags: tagsTaller,
+      expandIcon: ruedas.length ? 'ExpandMore' : null,
+      highlighted: true,
+      extra: ruedas.length ? `${ruedas.length} activos` : undefined,
+      km: eje.km,
+    },
+    ...ruedas.map((rueda, i) => ({
+      id: 't-r' + i,
+      depth: 1,
+      label: rueda.label,
+      tags: tagsTaller,
+      expandIcon: null,
+      highlighted: true,
+      km: rueda.km,
+    })),
+  ];
+
+  const filterRows = (rows: DetailRow[]): DetailRow[] => {
+    if (!soloIntercambiados) return rows;
+    const highlighted = rows.filter((r) => r.highlighted);
+    if (!highlighted.length) return highlighted;
+    const minDepth = Math.min(...highlighted.map((r) => r.depth));
+    return highlighted.map((r) => ({ ...r, depth: r.depth - minDepth }));
+  };
+
+  return {
+    unidadRows: filterRows(unidadRows),
+    tallerRows: filterRows(tallerRows),
+    unidadLabel: 'Unidad ' + unidad.code,
+    tallerLabel: tallerAntes.title,
+    rotatedCount: 1 + ruedas.length,
+  };
+}
 
 function DetailTagPill({ label, bg, fg }: { label: string; bg: string; fg: string }) {
   return (
@@ -671,7 +887,11 @@ function DetailTreeRow({ row }: { row: DetailRow }) {
       >
         {row.km}
       </span>
-      <MatButtonIcon icon="Info" title="Más información" />
+      {row.showRotate ? (
+        <MatButtonIcon icon="Rotate" title="Activo rotado" />
+      ) : (
+        <MatButtonIcon icon="Info" title="Más información" />
+      )}
     </div>
   );
 }
@@ -882,6 +1102,61 @@ export default function TrazabilidadApp() {
   const isMovimientos = s.screen === 'movimientos';
   const isDetalleMovimiento = s.screen === 'detalleMovimiento';
   const detalleRow = s.detalleRowId ? MOVIMIENTOS.find((r) => r.id === s.detalleRowId) || null : null;
+  const detalleIsUnidadTaller = detalleRow?.operacion === 'Intercambio entre unidad y taller';
+  const detalleDynamic = detalleIsUnidadTaller && detalleRow ? buildIntercambioUnidadTallerTrees(detalleRow, s.soloIntercambiados) : null;
+  // Demo: alternate the "rotación de eje" variant on/off across the two occurrences of this
+  // movement type (rep 0 / rep 1 from the MOVIMIENTOS x2 duplication) to show both states.
+  const detalleRotacionDemo = !!detalleDynamic && detalleRow?.id.split('-')[1] === '0';
+  const detalleUnidadRows = detalleDynamic?.unidadRows ?? UNIDAD_TREE;
+  const detalleTallerRowsBase = detalleDynamic?.tallerRows ?? TALLER_TREE;
+  const detalleTallerRows = detalleRotacionDemo
+    ? detalleTallerRowsBase.map((r) => (r.highlighted ? { ...r, showRotate: true } : r))
+    : detalleTallerRowsBase;
+  const detalleUnidadLabel = detalleDynamic?.unidadLabel ?? 'Unidad 1';
+
+  // "Unidad"-shaped titles found in the movimientos mock (e.g. "30801", or "30801 - Eje 1"
+  // whose leading token is the unidad) — powers the Unidad filter.
+  const movUnidadOf = (title: string) => title.split(' ')[0];
+  const movUnidadOptions = [
+    'Todos',
+    ...Array.from(
+      new Set(
+        MOVIMIENTOS.flatMap((r) => [...r.antes, ...r.despues])
+          .map((p) => movUnidadOf(p.title))
+          .filter((t) => /^\d+$/.test(t))
+      )
+    ),
+  ];
+  const movBuscarQ = s.movBuscarId.trim().toLowerCase();
+  const movFilteredRows = MOVIMIENTOS.filter((r) => {
+    if (s.movUnidad && s.movUnidad !== 'Todos') {
+      const hasUnidad = [...r.antes, ...r.despues].some((p) => movUnidadOf(p.title) === s.movUnidad);
+      if (!hasUnidad) return false;
+    }
+    if (s.movTipoComponente && r.componente !== s.movTipoComponente) return false;
+    if (s.movTipoOperacion && r.operacion !== s.movTipoOperacion) return false;
+    if (movBuscarQ) {
+      const haystack = [r.componente, ...[...r.antes, ...r.despues].flatMap((p) => [p.title, p.code])]
+        .join(' ')
+        .toLowerCase();
+      if (!haystack.includes(movBuscarQ)) return false;
+    }
+    return true;
+  });
+  const movPageSizeOptions = [10, 25, 50, 100];
+  const movTotal = movFilteredRows.length;
+  const movTotalPages = Math.max(1, Math.ceil(movTotal / s.movPageSize));
+  const movPage = Math.min(Math.max(1, s.movPage), movTotalPages);
+  const movPagedRows = movFilteredRows.slice((movPage - 1) * s.movPageSize, movPage * s.movPageSize);
+
+  const isTalleres = s.screen === 'talleres';
+  const tallerPageSizeOptions = [10, 25, 50, 100];
+  const tallerTotal = s.talleres.length;
+  const tallerTotalPages = Math.max(1, Math.ceil(tallerTotal / s.tallerPageSize));
+  const tallerPage = Math.min(Math.max(1, s.tallerPage), tallerTotalPages);
+  const tallerPagedRows = s.talleres.slice((tallerPage - 1) * s.tallerPageSize, tallerPage * s.tallerPageSize);
+  const tallerFormValid = s.tallerFormNombre.trim().length > 0 && s.tallerFormUso.length > 0;
+  const tallerEditingLockedName = s.tallerModalMode === 'edit';
 
   const isTipoComponente = s.screen === 'tipoComponente';
 
@@ -893,6 +1168,10 @@ export default function TrazabilidadApp() {
     const padreOk = it.conPadre ? f.conPadre : f.sinPadre;
     return hijosOk && padreOk;
   };
+  const almacenBuscarQ = s.almacenBuscar.trim().toLowerCase();
+  const almacenSearchActive = almacenBuscarQ.length > 0;
+  const almacenSearchFn = (it: AlmacenItem) =>
+    !almacenSearchActive || it.tipo.toLowerCase().includes(almacenBuscarQ) || it.code.toLowerCase().includes(almacenBuscarQ);
   const almacenAllFlat: AlmacenItem[] = ALMACEN_TIPOS.flatMap((t) => almacenData.items[t.tipo] || []);
   const almacenCheckedItems = almacenAllFlat.filter((it) => s.almacenCheckedIds[it.id]);
   const almacenMulti = almacenCheckedItems.length > 1;
@@ -1229,6 +1508,12 @@ export default function TrazabilidadApp() {
     }),
   }));
 
+  const tcPageSizeOptions = [10, 25, 50, 100];
+  const tcTotal = tcTableRows.length;
+  const tcTotalPages = Math.max(1, Math.ceil(tcTotal / s.tcPageSize));
+  const tcPage = Math.min(Math.max(1, s.tcPage), tcTotalPages);
+  const tcPagedRows = tcTableRows.slice((tcPage - 1) * s.tcPageSize, tcPage * s.tcPageSize);
+
   const historialPopupHit = s.historialPopupCode ? findAnywhereByCode(s.historialPopupCode) : null;
   const historialPopupTreeAnc = historialPopupHit?.kind === 'tree' ? ANCESTORS[historialPopupHit.node.tipo] || [] : [];
   const historialPopupCols =
@@ -1245,7 +1530,7 @@ export default function TrazabilidadApp() {
       : [];
 
   const unidadOptions = ['Todos'].concat(roots.map((n) => n.code));
-  const treeTabs = ['Estructura', 'Tipo de componente'];
+  const treeTabs = ['Por estructura', 'Por componente'];
   const shortcutCards = [
     { title: 'Movimientos', body: 'Texto descriptivo acerca de Movimientos' },
     { title: 'Talleres', body: 'Texto descriptivo acerca de Información de talleres' },
@@ -1454,6 +1739,7 @@ export default function TrazabilidadApp() {
                         almacenExpandedTipos: {},
                         almacenCheckedIds: {},
                         almacenSelectedId: null,
+                        almacenBuscar: '',
                       })
                     }
                   />
@@ -1498,13 +1784,64 @@ export default function TrazabilidadApp() {
                   }}
                 >
                   <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-                    <MatFormField label="Número de serie" width="100%" />
+                    <MatFormField
+                      label="Número de serie"
+                      width="100%"
+                      value={s.dNumeroSerie}
+                      onChange={(v) => patch({ dNumeroSerie: v, numeroSerieNotFound: null })}
+                    />
                   </div>
                   <MatButtonTonal
                     label="Consultar por número de serie"
-                    disabled
-                    style={{ background: 'rgba(13,13,13,0.1)', color: 'rgba(24,23,28,0.38)' }}
+                    disabled={!s.dNumeroSerie.trim()}
+                    onClick={() => {
+                      const code = s.dNumeroSerie.trim();
+                      const hit = findAnywhereByCode(code);
+                      if (!hit) {
+                        patch({ numeroSerieNotFound: code });
+                        return;
+                      }
+                      if (hit.kind === 'tree') {
+                        patch({
+                          screen: 'flota',
+                          flota: hit.flotaNombre,
+                          unidad: hit.node.unidadCode || 'Todos',
+                          dUnidad: hit.node.unidadCode || '',
+                          applied: true,
+                          treeTab: 0,
+                          selected: hit.node.id,
+                          checkedIds: { [hit.node.id]: true },
+                          expanded: {},
+                          typeOpen: {},
+                          tab: 0,
+                          flotaBuscar: code,
+                          flotaSearchAt: formatFechaHora(new Date()),
+                          numeroSerieNotFound: null,
+                        });
+                      } else {
+                        patch({
+                          screen: 'almacen',
+                          almacen: hit.almacenNombre,
+                          dAlmacen: hit.almacenNombre,
+                          almacenApplied: true,
+                          almacenExpandedTipos: {},
+                          almacenCheckedIds: {},
+                          almacenSelectedId: hit.item.id,
+                          almacenBuscar: code,
+                          tab: 0,
+                          numeroSerieNotFound: null,
+                        });
+                      }
+                    }}
+                    style={
+                      s.dNumeroSerie.trim() ? undefined : { background: 'rgba(13,13,13,0.1)', color: 'rgba(24,23,28,0.38)' }
+                    }
                   />
+                  {s.numeroSerieNotFound && (
+                    <span style={{ flexBasis: '100%', fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#8C1D18' }}>
+                      No se ha encontrado ningún componente con el número de serie &quot;{s.numeroSerieNotFound}&quot;.
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1566,6 +1903,7 @@ export default function TrazabilidadApp() {
                         tcAppliedTaller: [],
                         tcChipsActivo: [],
                         tcAppliedActivo: [],
+                        tcPage: 1,
                       }))
                     }
                     style={s.dTipoComponente ? undefined : { background: 'rgba(13,13,13,0.1)', color: 'rgba(24,23,28,0.38)' }}
@@ -1578,7 +1916,12 @@ export default function TrazabilidadApp() {
               <span style={{ fontSize: 24, lineHeight: '32px', color: '#000' }}>Otras búsquedas</span>
               <div style={{ display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'stretch' }}>
                 {shortcutCards.map((card) => {
-                  const onOpen = card.title === 'Movimientos' ? () => patch({ screen: 'movimientos' }) : undefined;
+                  const onOpen =
+                    card.title === 'Movimientos'
+                      ? () => patch({ screen: 'movimientos' })
+                      : card.title === 'Talleres'
+                      ? () => patch({ screen: 'talleres' })
+                      : undefined;
                   return (
                     <div
                       key={card.title}
@@ -2020,17 +2363,17 @@ export default function TrazabilidadApp() {
                   value={s.flota}
                   options={flotaOptions}
                   width={250}
-                  onSelect={(v) => patch({ flota: v, unidad: 'Todos' })}
+                  onSelect={(v) => patch({ flota: v, movUnidad: 'Todos', movPage: 1 })}
                 />
                 <MatSelect
                   label="Unidad"
                   value={s.movUnidad || 'Seleccionar'}
-                  options={unidadOptions}
+                  options={movUnidadOptions}
                   width={250}
-                  onSelect={(v) => patch({ movUnidad: v })}
+                  onSelect={(v) => patch({ movUnidad: v, movPage: 1 })}
                 />
               </div>
-              <MatButtonTonal label="Aplicar" />
+              <MatButtonTonal label="Aplicar" onClick={() => patch({ movPage: 1 })} />
             </div>
           </div>
 
@@ -2060,35 +2403,40 @@ export default function TrazabilidadApp() {
                   value={s.movTipoComponente}
                   options={TIPOS_COMPONENTE}
                   width={250}
-                  onSelect={(v) => patch({ movTipoComponente: v })}
+                  onSelect={(v) => patch({ movTipoComponente: v, movPage: 1 })}
+                  clearable
+                  onClear={() => patch({ movTipoComponente: '', movPage: 1 })}
                 />
                 <MatSelect
                   label="Tipo de operación"
                   value={s.movTipoOperacion}
                   options={TIPOS_OPERACION}
                   width={250}
-                  onSelect={(v) => patch({ movTipoOperacion: v })}
+                  onSelect={(v) => patch({ movTipoOperacion: v, movPage: 1 })}
+                  clearable
+                  onClear={() => patch({ movTipoOperacion: '', movPage: 1 })}
                 />
-                <div style={{ flex: '1 1 200px', minWidth: 200 }}>
-                  <MatFormField
-                    label="Buscar ID"
-                    width="100%"
-                    value={s.movBuscarId}
-                    onChange={(v) => patch({ movBuscarId: v })}
-                  />
-                </div>
-                <MatButtonFilled label="Descargar arbol  CSV" icon="Add" />
+                <MatFormField
+                  label="Buscar ID, componente, unidad..."
+                  width={280}
+                  value={s.movBuscarId}
+                  onChange={(v) => patch({ movBuscarId: v, movPage: 1 })}
+                />
+                <MatButtonFilled label="Descargar CSV" icon="Add" />
               </div>
 
+              {movTotal === 0 ? (
+                <EmptyState icon="List" text="No se han encontrado movimientos con estos filtros" width="100%" height={168} />
+              ) : (
               <div style={{ overflowX: 'auto' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 1473 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 1772 }}>
                   <div style={{ display: 'flex', flexDirection: 'row' }}>
                     {[
-                      { label: 'FECHA', w: 200 },
-                      { label: 'OPERACIÓN', w: 240 },
-                      { label: 'COMPONENTE', w: 197 },
-                      { label: 'ANTES', w: 394 },
-                      { label: 'DESPUES', w: 394 },
+                      { label: 'FECHA', w: 176 },
+                      { label: 'OPERACIÓN', w: 336 },
+                      { label: 'COMPONENTE', w: 242 },
+                      { label: 'ANTES', w: 485 },
+                      { label: 'DESPUES', w: 485 },
                       { label: '', w: 48 },
                     ].map((col) => (
                       <div key={col.label} style={{ width: col.w, flexShrink: 0 }}>
@@ -2096,11 +2444,11 @@ export default function TrazabilidadApp() {
                       </div>
                     ))}
                   </div>
-                  {MOVIMIENTOS.map((row) => (
+                  {movPagedRows.map((row) => (
                     <div key={row.id} style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
                       <div
                         style={{
-                          width: 200,
+                          width: 176,
                           flexShrink: 0,
                           minHeight: 48,
                           display: 'flex',
@@ -2117,7 +2465,7 @@ export default function TrazabilidadApp() {
                       </div>
                       <div
                         style={{
-                          width: 240,
+                          width: 336,
                           flexShrink: 0,
                           minHeight: 48,
                           display: 'flex',
@@ -2132,7 +2480,7 @@ export default function TrazabilidadApp() {
                       <div
                         title={row.componente}
                         style={{
-                          width: 197,
+                          width: 242,
                           flexShrink: 0,
                           minHeight: 48,
                           display: 'flex',
@@ -2152,7 +2500,7 @@ export default function TrazabilidadApp() {
                       </div>
                       <div
                         style={{
-                          width: 394,
+                          width: 485,
                           flexShrink: 0,
                           minHeight: 48,
                           display: 'flex',
@@ -2166,7 +2514,7 @@ export default function TrazabilidadApp() {
                       </div>
                       <div
                         style={{
-                          width: 394,
+                          width: 485,
                           flexShrink: 0,
                           minHeight: 48,
                           display: 'flex',
@@ -2248,6 +2596,369 @@ export default function TrazabilidadApp() {
                   ))}
                 </div>
               </div>
+              )}
+
+              {movTotal > 0 && (
+                <Paginator
+                  page={s.movPage}
+                  pageSize={s.movPageSize}
+                  total={movTotal}
+                  pageSizeOptions={movPageSizeOptions}
+                  onPageChange={(p) => patch({ movPage: p })}
+                  onPageSizeChange={(sz) => patch({ movPageSize: sz, movPage: 1 })}
+                />
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isTalleres && (
+        <div
+          data-screen-label="Talleres"
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 24,
+            padding: '24px 48px 16px 48px',
+            alignItems: 'stretch',
+            boxSizing: 'border-box',
+            flexGrow: 1,
+          }}
+        >
+          <Breadcrumb items={['Consultas', 'Talleres']} showBack onBack={() => patch({ screen: 'consulta' })} />
+
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 36, lineHeight: '44px', color: '#18171C' }}>Talleres</span>
+            <MatButtonFilled
+              label="Añadir taller"
+              icon="Add"
+              onClick={() =>
+                patch({
+                  tallerModalMode: 'add',
+                  tallerModalEditId: null,
+                  tallerFormNombre: '',
+                  tallerFormUbicacion: '',
+                  tallerFormContacto: '',
+                  tallerFormTelefono: '',
+                  tallerFormUso: [],
+                  tallerFormUsoMenuOpen: false,
+                })
+              }
+            />
+          </div>
+
+          <div style={{ borderRadius: 8, background: '#FFF', display: 'flex', flexDirection: 'column', padding: 16, gap: 16, boxSizing: 'border-box' }}>
+            <div style={{ overflowX: 'auto' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', minWidth: 800 }}>
+                <div style={{ display: 'flex', flexDirection: 'row' }}>
+                  {[
+                    { label: 'NOMBRE DE TALLER', w: 'flex' },
+                    { label: 'UBICACIÓN', w: 'flex' },
+                    { label: 'CONTACTO (TELÉFONO)', w: 'flex' },
+                    { label: 'USO', w: 'flex' },
+                    { label: '', w: 48 },
+                  ].map((col) => (
+                    <div key={col.label} style={col.w === 'flex' ? { flex: '1 1 0', minWidth: 0 } : { width: col.w, flexShrink: 0 }}>
+                      <MatCellIndexColStatic label={col.label} />
+                    </div>
+                  ))}
+                </div>
+                {tallerPagedRows.map((t) => (
+                  <div key={t.id} style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
+                    <div
+                      style={{
+                        flex: '1 1 0',
+                        minWidth: 0,
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '4px 8px',
+                        borderBottom: '1px solid #C8C7D1',
+                        boxSizing: 'border-box',
+                        fontSize: 14,
+                        letterSpacing: '0.25px',
+                        color: '#18171C',
+                      }}
+                    >
+                      {t.nombre}
+                    </div>
+                    <div
+                      style={{
+                        flex: '1 1 0',
+                        minWidth: 0,
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '4px 8px',
+                        borderBottom: '1px solid #C8C7D1',
+                        boxSizing: 'border-box',
+                        fontSize: 14,
+                        letterSpacing: '0.25px',
+                        color: '#18171C',
+                      }}
+                    >
+                      {t.ubicacion || '—'}
+                    </div>
+                    <div
+                      style={{
+                        flex: '1 1 0',
+                        minWidth: 0,
+                        minHeight: 48,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'center',
+                        padding: '4px 8px',
+                        borderBottom: '1px solid #C8C7D1',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <span style={{ fontSize: 14, letterSpacing: '0.25px', color: '#18171C' }}>{t.contacto || '—'}</span>
+                      {t.telefono && (
+                        <span style={{ fontSize: 12, letterSpacing: '0.4px', color: '#474554' }}>{t.telefono}</span>
+                      )}
+                    </div>
+                    <div
+                      style={{
+                        flex: '1 1 0',
+                        minWidth: 0,
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '4px 8px',
+                        borderBottom: '1px solid #C8C7D1',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      {t.uso.map((u) => (
+                        <span
+                          key={u}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            height: 24,
+                            padding: '0 12px',
+                            borderRadius: 8,
+                            background: '#F0F0F4',
+                            color: '#18171C',
+                            fontSize: 12,
+                            fontWeight: 500,
+                            lineHeight: '16px',
+                            letterSpacing: '0.4px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {u}
+                        </span>
+                      ))}
+                    </div>
+                    <div
+                      style={{
+                        width: 48,
+                        flexShrink: 0,
+                        minHeight: 48,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderBottom: '1px solid #C8C7D1',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <MatButtonIcon
+                        icon="MoreVert"
+                        title="Más acciones"
+                        onClick={() => patch((prev) => ({ tallerMenuOpenId: prev.tallerMenuOpenId === t.id ? null : t.id }))}
+                      />
+                    </div>
+                    {s.tallerMenuOpenId === t.id && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          zIndex: 20,
+                          top: '100%',
+                          right: 0,
+                          width: 200,
+                          display: 'flex',
+                          flexDirection: 'column',
+                          padding: '8px 0',
+                          borderRadius: 4,
+                          background: '#FFF',
+                          boxShadow: '0 4px 16px rgba(24,23,28,0.18)',
+                        }}
+                      >
+                        <div
+                          onClick={() =>
+                            patch({
+                              tallerMenuOpenId: null,
+                              tallerModalMode: 'edit',
+                              tallerModalEditId: t.id,
+                              tallerFormNombre: t.nombre,
+                              tallerFormUbicacion: t.ubicacion,
+                              tallerFormContacto: t.contacto,
+                              tallerFormTelefono: t.telefono,
+                              tallerFormUso: t.uso.slice(),
+                              tallerFormUsoMenuOpen: false,
+                            })
+                          }
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 12,
+                            padding: '8px 16px',
+                            cursor: 'pointer',
+                            fontSize: 14,
+                            lineHeight: '20px',
+                            letterSpacing: '0.25px',
+                            color: '#18171C',
+                          }}
+                          onMouseEnter={(e) => (e.currentTarget.style.background = '#F3F2F7')}
+                          onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                        >
+                          <Icon name="Edit" size={18} />
+                          Editar
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Paginator
+              page={s.tallerPage}
+              pageSize={s.tallerPageSize}
+              total={tallerTotal}
+              pageSizeOptions={tallerPageSizeOptions}
+              onPageChange={(p) => patch({ tallerPage: p })}
+              onPageSizeChange={(sz) => patch({ tallerPageSize: sz, tallerPage: 1 })}
+            />
+          </div>
+        </div>
+      )}
+
+      {s.tallerModalMode && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(24,23,28,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 50,
+          }}
+          onClick={() => patch({ tallerModalMode: null })}
+        >
+          <div
+            style={{
+              width: 568,
+              maxHeight: '85vh',
+              overflowY: 'auto',
+              background: '#FFF',
+              borderRadius: 16,
+              padding: 24,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 24,
+              boxSizing: 'border-box',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 20, fontWeight: 500, color: '#18171C' }}>
+                {s.tallerModalMode === 'add' ? 'Añadir taller' : 'Editar taller'}
+              </span>
+              <MatButtonIcon icon="Close" title="Cerrar" onClick={() => patch({ tallerModalMode: null })} />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <MatFormField
+                label="Nombre de taller*"
+                width="100%"
+                value={s.tallerFormNombre}
+                onChange={(v) => patch({ tallerFormNombre: v })}
+                disabled={tallerEditingLockedName}
+              />
+              <MatFormField
+                label="Ubicación"
+                width="100%"
+                value={s.tallerFormUbicacion}
+                onChange={(v) => patch({ tallerFormUbicacion: v })}
+              />
+              <MatFormField
+                label="Contacto"
+                width="100%"
+                value={s.tallerFormContacto}
+                onChange={(v) => patch({ tallerFormContacto: v })}
+              />
+              <MatFormField
+                label="Teléfono"
+                width="100%"
+                value={s.tallerFormTelefono}
+                onChange={(v) => patch({ tallerFormTelefono: v })}
+              />
+              <AtributoChipField
+                label="Uso*"
+                chips={s.tallerFormUso}
+                options={USOS_TALLER}
+                empty={s.tallerFormUso.length === 0}
+                menuOpen={s.tallerFormUsoMenuOpen}
+                chipColor="#E5E3EC"
+                chipText="#18171C"
+                closeColor="#474554"
+                onToggleChip={(label) =>
+                  patch((prev) => ({
+                    tallerFormUso: prev.tallerFormUso.includes(label)
+                      ? prev.tallerFormUso.filter((c) => c !== label)
+                      : prev.tallerFormUso.concat([label]),
+                  }))
+                }
+                onToggleMenu={() => patch((prev) => ({ tallerFormUsoMenuOpen: !prev.tallerFormUsoMenuOpen }))}
+              />
+              {/* Reserves room for the dropdown's absolutely-positioned menu so it doesn't
+                  overlap the Cancelar/Guardar row right below it. */}
+              {s.tallerFormUsoMenuOpen && <div style={{ height: USOS_TALLER.length * 40 + 16, flexShrink: 0 }} />}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', gap: 16 }}>
+              <MatButtonOutlined label="Cancelar" onClick={() => patch({ tallerModalMode: null })} />
+              <MatButtonFilled
+                label={s.tallerModalMode === 'add' ? 'Añadir' : 'Guardar'}
+                disabled={!tallerFormValid}
+                onClick={() => {
+                  if (!tallerFormValid) return;
+                  if (s.tallerModalMode === 'add') {
+                    const newTaller: TallerInfo = {
+                      id: 'taller-' + Math.random().toString(36).slice(2),
+                      nombre: s.tallerFormNombre.trim(),
+                      ubicacion: s.tallerFormUbicacion.trim(),
+                      contacto: s.tallerFormContacto.trim(),
+                      telefono: s.tallerFormTelefono.trim(),
+                      uso: s.tallerFormUso.slice(),
+                      editableName: true,
+                    };
+                    patch((prev) => ({ talleres: prev.talleres.concat([newTaller]), tallerModalMode: null }));
+                  } else if (s.tallerModalEditId) {
+                    const editId = s.tallerModalEditId;
+                    patch((prev) => ({
+                      talleres: prev.talleres.map((t) =>
+                        t.id === editId
+                          ? {
+                              ...t,
+                              ubicacion: s.tallerFormUbicacion.trim(),
+                              contacto: s.tallerFormContacto.trim(),
+                              telefono: s.tallerFormTelefono.trim(),
+                              uso: s.tallerFormUso.slice(),
+                            }
+                          : t
+                      ),
+                      tallerModalMode: null,
+                    }));
+                  }
+                }}
+              />
             </div>
           </div>
         </div>
@@ -2314,7 +3025,7 @@ export default function TrazabilidadApp() {
               <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                 <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, padding: '8px', boxSizing: 'border-box' }}>
                   <Icon name="Train" size={24} />
-                  <span style={{ fontWeight: 500, fontSize: 22, lineHeight: '28px', color: '#000' }}>Unidad 1</span>
+                  <span style={{ fontWeight: 500, fontSize: 22, lineHeight: '28px', color: '#000' }}>{detalleUnidadLabel}</span>
                 </div>
                 <MatDividerHorizontal />
                 <div
@@ -2328,7 +3039,7 @@ export default function TrazabilidadApp() {
                     flexDirection: 'column',
                   }}
                 >
-                  {UNIDAD_TREE.map((row) => (
+                  {detalleUnidadRows.map((row) => (
                     <DetailTreeRow key={row.id} row={row} />
                   ))}
                 </div>
@@ -2348,27 +3059,30 @@ export default function TrazabilidadApp() {
                 >
                   <OperationChip icons={detalleRow.operacionIcons} label={detalleRow.operacion} />
                   <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#000' }}>{detalleRow.fecha}</span>
-                  <span
-                    style={{
-                      alignSelf: 'flex-start',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      height: 24,
-                      padding: '0 12px',
-                      borderRadius: 8,
-                      background: '#F9F9FB',
-                      border: '1px solid #E4E2E8',
-                      color: '#18171C',
-                      fontSize: 12,
-                      lineHeight: '16px',
-                      letterSpacing: '0.4px',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    Activos rotados
-                    <span style={{ fontWeight: 500, fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px' }}>0</span>
-                  </span>
+                  {detalleRotacionDemo && (
+                    <span
+                      style={{
+                        alignSelf: 'flex-start',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        height: 24,
+                        padding: '0 12px',
+                        borderRadius: 8,
+                        background: '#FAF2BD',
+                        color: '#645911',
+                        fontSize: 12,
+                        lineHeight: '16px',
+                        letterSpacing: '0.4px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Activos rotados
+                      <span style={{ fontWeight: 500, fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px' }}>
+                        {detalleDynamic?.rotatedCount ?? 0}
+                      </span>
+                    </span>
+                  )}
                   <div
                     style={{
                       background: '#FFF',
@@ -2390,6 +3104,16 @@ export default function TrazabilidadApp() {
                         </span>
                       </div>
                     ))}
+                    {detalleRotacionDemo && (
+                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, padding: '0 8px' }}>
+                        <span style={{ color: '#474554', display: 'flex', flexShrink: 0 }}>
+                          <Icon name="Rotate" size={14} />
+                        </span>
+                        <span style={{ fontWeight: 600, fontSize: 10, lineHeight: '16px', letterSpacing: '0.5px', color: '#474554' }}>
+                          Rotación
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
                 <SlideToggle
@@ -2419,7 +3143,7 @@ export default function TrazabilidadApp() {
                     flexDirection: 'column',
                   }}
                 >
-                  {TALLER_TREE.map((row) => (
+                  {detalleTallerRows.map((row) => (
                     <DetailTreeRow key={row.id} row={row} />
                   ))}
                 </div>
@@ -2475,6 +3199,7 @@ export default function TrazabilidadApp() {
                   almacenExpandedTipos: {},
                   almacenCheckedIds: {},
                   almacenSelectedId: null,
+                  almacenBuscar: '',
                   tab: 0,
                 }))
               }
@@ -2501,8 +3226,16 @@ export default function TrazabilidadApp() {
 
                 {s.almacenApplied && (
                   <>
-                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-                      {almacenFilterActive ? (
+                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                      <div style={{ flex: '1 1 0', minWidth: 0 }}>
+                        <MatFormField
+                          label="Buscar"
+                          width="100%"
+                          value={s.almacenBuscar}
+                          onChange={(v) => patch({ almacenBuscar: v })}
+                        />
+                      </div>
+                      {almacenFilterActive && (
                         <span
                           style={{
                             display: 'inline-flex',
@@ -2521,10 +3254,8 @@ export default function TrazabilidadApp() {
                         >
                           Resultados filtrados
                         </span>
-                      ) : (
-                        <span />
                       )}
-                      <div style={{ display: 'flex', flexDirection: 'row', gap: 4 }}>
+                      <div style={{ display: 'flex', flexDirection: 'row', gap: 4, flexShrink: 0 }}>
                         <MatButtonIcon
                           icon="UnfoldLess"
                           title={almacenAllExpanded ? 'Colapsar todo' : 'Expandir todo'}
@@ -2548,9 +3279,9 @@ export default function TrazabilidadApp() {
 
                     <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 680, overflowY: 'auto' }}>
                       {ALMACEN_TIPOS.map((t) => {
-                        const expanded = !!s.almacenExpandedTipos[t.tipo];
                         const rawItems = almacenData.items[t.tipo] || [];
-                        const filteredItems = rawItems.filter(almacenFilterFn);
+                        const filteredItems = rawItems.filter(almacenFilterFn).filter(almacenSearchFn);
+                        const expanded = almacenSearchActive ? filteredItems.length > 0 : !!s.almacenExpandedTipos[t.tipo];
                         const allCheckedInTipo = filteredItems.length > 0 && filteredItems.every((it) => s.almacenCheckedIds[it.id]);
                         return (
                           <div key={t.tipo}>
@@ -3117,6 +3848,7 @@ export default function TrazabilidadApp() {
                       tcFlotaMenuOpen: false,
                       tcTallerMenuOpen: false,
                       tcActivoMenuOpen: false,
+                      tcPage: 1,
                     }))
                   }
                 />
@@ -3137,7 +3869,17 @@ export default function TrazabilidadApp() {
               ) : tcTableRows.length === 0 ? (
                 <EmptyState icon="Component" text="No se han encontrado componentes de este tipo" width="100%" height={168} />
               ) : (
-                <Table cols={tcCols} rows={tcTableRows} onIdInfoClick={(code) => patch({ historialPopupCode: code })} />
+                <>
+                  <Table cols={tcCols} rows={tcPagedRows} onIdInfoClick={(code) => patch({ historialPopupCode: code })} />
+                  <Paginator
+                    page={s.tcPage}
+                    pageSize={s.tcPageSize}
+                    total={tcTotal}
+                    pageSizeOptions={tcPageSizeOptions}
+                    onPageChange={(p) => patch({ tcPage: p })}
+                    onPageSizeChange={(sz) => patch({ tcPageSize: sz, tcPage: 1 })}
+                  />
+                </>
               )}
             </div>
 
@@ -3183,7 +3925,7 @@ export default function TrazabilidadApp() {
               </div>
               <MatButtonIcon icon="Close" title="Cerrar" onClick={() => patch({ historialPopupCode: null })} />
             </div>
-            <Table cols={historialPopupCols} rows={historialPopupRows} />
+            <Table cols={historialPopupCols} rows={historialPopupRows} showIdInfo={false} />
           </div>
         </div>
       )}

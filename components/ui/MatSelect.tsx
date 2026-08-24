@@ -10,6 +10,8 @@ export function MatSelect({
   onSelect,
   width = 250,
   disabled,
+  clearable,
+  onClear,
 }: {
   label: string;
   value?: string;
@@ -17,6 +19,8 @@ export function MatSelect({
   onSelect?: (v: string) => void;
   width?: number | string;
   disabled?: boolean;
+  clearable?: boolean;
+  onClear?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -81,6 +85,18 @@ export function MatSelect({
         >
           {hasValue ? value : 'Seleccionar'}
         </span>
+        {clearable && hasValue && (
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen(false);
+              onClear ? onClear() : onSelect?.('');
+            }}
+            style={{ color: '#474554', display: 'flex', flexShrink: 0, cursor: 'pointer' }}
+          >
+            <Icon name="Close" size={18} />
+          </span>
+        )}
         <span style={{ color: '#474554', display: 'flex', flexShrink: 0 }}>
           <Icon name="ArrowDropDown" size={20} />
         </span>

@@ -35,6 +35,10 @@ import {
   ChevronsDownUp,
   List,
   Component,
+  ChevronFirst,
+  ChevronLast,
+  Pencil,
+  RotateCw,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -85,6 +89,10 @@ const MAP: Record<string, ComponentType<any>> = {
   List: List,
   Component: Component,
   Widgets: Widgets,
+  FirstPage: ChevronFirst,
+  LastPage: ChevronLast,
+  Edit: Pencil,
+  Rotate: RotateCw,
 };
 
 export function Icon({ name, size = 20 }: { name: string; size?: number }) {

@@ -153,16 +153,19 @@ export function MatButtonIcon({
   onClick,
   title,
   style,
+  disabled,
 }: {
   icon: string;
   onClick?: () => void;
   title?: string;
   style?: CSSProperties;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       title={title}
       aria-label={title || icon}
       style={{
@@ -171,11 +174,11 @@ export function MatButtonIcon({
         borderRadius: '50%',
         border: 'none',
         background: 'transparent',
-        color: '#474554',
+        color: disabled ? 'rgba(24,23,28,0.38)' : '#474554',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        cursor: 'pointer',
+        cursor: disabled ? 'default' : 'pointer',
         ...style,
       }}
     >

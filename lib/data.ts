@@ -20,6 +20,8 @@ export interface TreeNode {
 
 const U3220_KM = '125.668km';
 const U3230_KM = '120.670km';
+const Z3240_KM = '98.412km';
+const Z3250_KM = '102.150km';
 
 const pad = (n: number, len = 3) => String(n).padStart(len, '0');
 
@@ -164,7 +166,52 @@ export const FLEETS: Record<string, TreeNode[]> = {
       ),
     },
   ],
-  'Zaragoza 3000': [],
+  'Zaragoza 3000': [
+    {
+      id: 'u3240',
+      label: 'Unidad',
+      code: '3240',
+      tipo: 'Unidad',
+      depth: 0,
+      km: Z3240_KM,
+      unidadCode: '3240',
+      children: [3241, 3242, 3243].map((n, i) =>
+        coche(n, i, {
+          unidadCode: '3240',
+          km: Z3240_KM,
+          bogieSeqOffset: 20,
+          ejeBase: 850000,
+          ejeRandom: false,
+          ruedaPrefix: '082870-',
+          ruedaRandom: false,
+          reductoraPrefixes: ['9427/F/', '9427/E/'],
+          reductoraRandom: false,
+        })
+      ),
+    },
+    {
+      id: 'u3250',
+      label: 'Unidad',
+      code: '3250',
+      tipo: 'Unidad',
+      depth: 0,
+      km: Z3250_KM,
+      unidadCode: '3250',
+      children: [3251, 3252, 3253].map((n, i) =>
+        coche(n, i, {
+          unidadCode: '3250',
+          km: Z3250_KM,
+          bogieSeqOffset: 26,
+          ejeBase: 860000,
+          ejeRandom: false,
+          ruedaPrefix: '082880-',
+          ruedaRandom: false,
+          reductoraPrefixes: ['9427/H/', '9427/G/'],
+          reductoraRandom: false,
+        })
+      ),
+    },
+  ],
 };
 
 export function find(nodes: TreeNode[], id: string): TreeNode | null {
@@ -189,6 +236,21 @@ export function findByCode(nodes: TreeNode[], code: string): TreeNode | null {
   return null;
 }
 
+// The full ancestor chain (root-first) down to the node with this code — used by the
+// "Detalle movimiento" screen to render a real Unidad > Coche > Bogie > Eje path instead of
+// a hardcoded one.
+export function findCodePath(nodes: TreeNode[], code: string, path: TreeNode[] = []): TreeNode[] | null {
+  for (const n of nodes) {
+    const next = path.concat([n]);
+    if (n.code === code) return next;
+    if (n.children) {
+      const hit = findCodePath(n.children, code, next);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
 function findAlmacenItemByCode(items: AlmacenItem[], code: string): AlmacenItem | null {
   for (const it of items) {
     if (it.code === code) return it;
@@ -200,20 +262,23 @@ function findAlmacenItemByCode(items: AlmacenItem[], code: string): AlmacenItem 
   return null;
 }
 
-export type AnywhereHit = { kind: 'tree'; node: TreeNode } | { kind: 'almacen'; item: AlmacenItem };
+export type AnywhereHit =
+  | { kind: 'tree'; node: TreeNode; flotaNombre: string }
+  | { kind: 'almacen'; item: AlmacenItem; almacenNombre: string };
 
 // Looks up a code across every flota AND every almacén/taller — used by the "Histórico de
 // este componente" popup from screens (like "Consultar por tipo de componente") whose rows
-// can come from either source, not just the currently selected flota/almacén.
+// can come from either source, not just the currently selected flota/almacén, and by the
+// landing "Número de serie" card to know which flota/almacén to jump into.
 export function findAnywhereByCode(code: string): AnywhereHit | null {
-  for (const roots of Object.values(FLEETS)) {
+  for (const [flotaNombre, roots] of Object.entries(FLEETS)) {
     const hit = findByCode(roots, code);
-    if (hit) return { kind: 'tree', node: hit };
+    if (hit) return { kind: 'tree', node: hit, flotaNombre };
   }
-  for (const almacen of Object.values(ALMACENES)) {
+  for (const [almacenNombre, almacen] of Object.entries(ALMACENES)) {
     for (const list of Object.values(almacen.items)) {
       const hit = findAlmacenItemByCode(list, code);
-      if (hit) return { kind: 'almacen', item: hit };
+      if (hit) return { kind: 'almacen', item: hit, almacenNombre };
     }
   }
   return null;
@@ -530,109 +595,146 @@ export interface MovimientoRow {
   despues: PositionRef[];
 }
 
-const MOVIMIENTOS_BASE: Omit<MovimientoRow, 'id'>[] = [
+// Antes/después reference real ids already present elsewhere in the mock data (unidades,
+// talleres, ejes, ruedas) rather than the placeholder codes from the original design, so a
+// movimiento here tells a story that's internally consistent with the rest of the app.
+// Only truly untracked auxiliary parts (Ventilador, Compresor, Patín, HVAC) get invented codes.
+const MOVIMIENTOS_BASE: Omit<MovimientoRow, 'id' | 'fecha'>[] = [
   {
-    fecha: '20-08-2026 14:24:12',
     operacion: 'Intercambio entre unidades',
     operacionIcons: ['Train', 'SwapHoriz', 'Train'],
     componente: 'Ventilador',
     antes: [
-      { title: '30801', code: 'SECH222000099033' },
-      { title: '30820', code: 'SECH2228888815475' },
+      { title: '3220', code: 'VENT-0142' },
+      { title: '3230', code: 'VENT-0891' },
     ],
     despues: [
-      { title: '30801', code: 'SECH2228888815475' },
-      { title: '30820', code: 'SECH222000099033' },
+      { title: '3220', code: 'VENT-0891' },
+      { title: '3230', code: 'VENT-0142' },
     ],
   },
   {
-    fecha: '20-08-2026 14:24:12',
-    operacion: 'Intercambio entre almacén y taller',
+    operacion: 'Intercambio entre unidad y taller',
     operacionIcons: ['Train', 'SwapHoriz', 'Warehouse'],
     componente: 'Eje',
     antes: [
-      { title: '30801', code: 'SECH222000099033' },
-      { title: 'Taller Stock Urbos 100', code: 'SECH2228888815475' },
+      { title: '3220', code: '415875' },
+      { title: 'Taller Stock Urbos 100', code: '700000' },
     ],
     despues: [
-      { title: '30801', code: 'SECH2228888815475' },
-      { title: 'Taller Stock Urbos 100', code: 'SECH222000099033' },
+      { title: '3220', code: '700000' },
+      { title: 'Taller Stock Urbos 100', code: '415875' },
     ],
   },
   {
-    fecha: '20-08-2026 14:24:12',
     operacion: 'Intercambio dentro de la misma unidad',
     operacionIcons: ['Train', 'Cycle'],
     componente: 'Rueda',
     antes: [
-      { title: '30801 - Eje 1', code: 'SECH222000099033' },
-      { title: '30801 - Eje 2', code: 'SECH2228888815475' },
+      { title: '3220 - Eje 1', code: '082801-0001' },
+      { title: '3220 - Eje 2', code: '082801-0003' },
     ],
     despues: [
-      { title: '30801 - Eje 1', code: 'SECH2228888815475' },
-      { title: '30801 - Eje 2', code: 'SECH222000099033' },
+      { title: '3220 - Eje 1', code: '082801-0003' },
+      { title: '3220 - Eje 2', code: '082801-0001' },
     ],
   },
   {
-    fecha: '20-08-2026 14:24:12',
-    operacion: 'Envio entre talleres',
-    operacionIcons: ['Warehouse', 'MoveRight', 'Warehouse'],
-    componente: 'Patín captación',
-    antes: [
-      { title: 'Taller Stock Urbos 100', code: 'SECH222000099033' },
-      { title: 'Taller 2', code: 'Vacio' },
-    ],
-    despues: [
-      { title: 'Taller Stock Urbos 100', code: 'Vacio' },
-      { title: 'Taller 2', code: 'SECH222000099033' },
-    ],
-  },
-  {
-    fecha: '20-08-2026 14:24:12',
     operacion: 'Montaje en taller',
     operacionIcons: ['AssemblyOn'],
     componente: 'Compresor',
     antes: [
-      { title: 'Taller Stock Urbos 100', code: 'SECH222000099033' },
-      { title: '30820', code: 'Vacio' },
+      { title: 'Taller Stock Urbos 100', code: 'COMP-0511' },
+      { title: '3230', code: 'Vacio' },
     ],
     despues: [
       { title: 'Taller Stock Urbos 100', code: 'Vacio' },
-      { title: '30820', code: 'SECH222000099033' },
+      { title: '3230', code: 'COMP-0511' },
     ],
   },
   {
-    fecha: '20-08-2026 14:24:12',
     operacion: 'Desmontaje en taller',
     operacionIcons: ['AssemblyOff'],
     componente: 'Motor ventilador condensadora HVAC Sala',
     antes: [
       { title: 'Taller Stock Urbos 100', code: 'Vacio' },
-      { title: '30820', code: 'SECH222000099033' },
+      { title: '3230', code: 'HVAC-0074' },
     ],
     despues: [
-      { title: 'Taller Stock Urbos 100', code: 'SECH222000099033' },
-      { title: '30820', code: 'Vacio' },
+      { title: 'Taller Stock Urbos 100', code: 'HVAC-0074' },
+      { title: '3230', code: 'Vacio' },
     ],
   },
   {
-    fecha: '20-08-2026 14:24:12',
-    operacion: 'Fin de vida',
-    operacionIcons: ['Block'],
-    componente: 'Eje',
-    antes: [{ title: 'Taller Stock Urbos 100', code: 'SECH222000099033' }],
-    despues: [{ title: '2. Fin de vida componente', code: 'SECH222000099033' }],
+    operacion: 'Envio entre talleres',
+    operacionIcons: ['Warehouse', 'MoveRight', 'Warehouse'],
+    componente: 'Patín captación',
+    antes: [
+      { title: 'Taller Stock Urbos 100', code: 'PC-0027' },
+      { title: 'Taller Tranvía Zaragoza', code: 'Vacio' },
+    ],
+    despues: [
+      { title: 'Taller Stock Urbos 100', code: 'Vacio' },
+      { title: 'Taller Tranvía Zaragoza', code: 'PC-0027' },
+    ],
   },
 ];
 
+// Deterministic (no Date.now()/Math.random()) but varied per-row timestamp, down to the
+// minute — spreads movimientos across a couple of weeks instead of all sharing one instant.
+function movFecha(seed: number): string {
+  const base = new Date(2026, 7, 20, 8, 0);
+  const offsetMinutes = shuffle(seed, 100000, 6803) % (14 * 24 * 60);
+  const d = new Date(base.getTime() + offsetMinutes * 60000);
+  const p = (v: number) => String(v).padStart(2, '0');
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
 export const MOVIMIENTOS: MovimientoRow[] = [0, 1].flatMap((rep) =>
-  MOVIMIENTOS_BASE.map((row, i) => ({ ...row, id: 'mov-' + rep + '-' + i }))
+  MOVIMIENTOS_BASE.map((row, i) => ({
+    ...row,
+    id: 'mov-' + rep + '-' + i,
+    fecha: movFecha(rep * MOVIMIENTOS_BASE.length + i + 1),
+  }))
 );
-// Fila 9 (índice 8): fecha ajustada manualmente.
-MOVIMIENTOS[8] = { ...MOVIMIENTOS[8], fecha: '05-08-2026 08:00:00' };
 
 export const TIPOS_COMPONENTE = ['Eje', 'Rueda', 'Reductora', 'Ventilador', 'Compresor', 'Patín captación'];
 export const TIPOS_OPERACION = MOVIMIENTOS_BASE.map((r) => r.operacion);
+
+export interface TallerInfo {
+  id: string;
+  nombre: string;
+  ubicacion: string;
+  contacto: string;
+  telefono: string;
+  uso: string[];
+  editableName: boolean;
+}
+
+export const USOS_TALLER = ['Almacén', 'Mantenimiento'];
+
+// The only two talleres backed by real data elsewhere in the app (ALMACENES) — their name is
+// locked when editing since other screens look them up by this exact string.
+export const TALLERES_SEED: TallerInfo[] = [
+  {
+    id: 'taller-1',
+    nombre: 'Taller Stock Urbos 100',
+    ubicacion: 'Beasain',
+    contacto: 'Servicio técnico CAF',
+    telefono: '943 10 50 45',
+    uso: ['Almacén'],
+    editableName: false,
+  },
+  {
+    id: 'taller-2',
+    nombre: 'Taller Tranvía Zaragoza',
+    ubicacion: 'Zaragoza',
+    contacto: 'Servicio técnico CAF',
+    telefono: '943 10 50 45',
+    uso: ['Almacén', 'Mantenimiento'],
+    editableName: false,
+  },
+];
 
 // All codes of a given tipo that exist within the same unidad as unidadCode — used to fill
 // "previously mounted" hijo-historial slots with REAL codes from that unidad (never another

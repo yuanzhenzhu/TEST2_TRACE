@@ -9,12 +9,14 @@ export function MatFormField({
   value,
   onChange,
   placeholder,
+  disabled,
 }: {
   label: string;
   width?: number | string;
   value?: string;
   onChange?: (v: string) => void;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   const shrink = focused || !!value;
@@ -28,7 +30,7 @@ export function MatFormField({
                 top: -8,
                 left: 8,
                 padding: '0 4px',
-                background: '#FFF',
+                background: disabled ? '#F0F0F4' : '#FFF',
                 fontSize: 12,
                 lineHeight: '16px',
                 letterSpacing: '0.4px',
@@ -57,6 +59,7 @@ export function MatFormField({
       <input
         value={value ?? ''}
         placeholder={placeholder}
+        disabled={disabled}
         onChange={(e) => onChange?.(e.target.value)}
         onFocus={() => setFocused(true)}
         onBlur={() => setFocused(false)}
@@ -68,9 +71,9 @@ export function MatFormField({
           padding: '0 12px',
           fontSize: 14,
           fontFamily: 'inherit',
-          color: '#18171C',
+          color: disabled ? 'rgba(24,23,28,0.38)' : '#18171C',
           boxSizing: 'border-box',
-          background: '#FFF',
+          background: disabled ? '#F0F0F4' : '#FFF',
         }}
       />
     </div>

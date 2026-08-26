@@ -1085,7 +1085,8 @@ export default function TrazabilidadApp() {
   ];
   const movBuscarQ = s.movBuscarId.trim().toLowerCase();
   const movFilteredRows = MOVIMIENTOS.filter((r) => {
-    if (s.movUnidad && s.movUnidad !== 'Todos') {
+    if (!s.movUnidad) return false;
+    if (s.movUnidad !== 'Todos') {
       const hasUnidad = [...r.antes, ...r.despues].some((p) => movUnidadOf(p.title) === s.movUnidad);
       if (!hasUnidad) return false;
     }
@@ -2323,7 +2324,7 @@ export default function TrazabilidadApp() {
                   value={s.flota}
                   options={flotaOptions}
                   width={250}
-                  onSelect={(v) => patch({ flota: v, movUnidad: 'Todos', movPage: 1 })}
+                  onSelect={(v) => patch({ flota: v, movUnidad: '', movPage: 1 })}
                 />
                 <MatSelect
                   label="Unidad"
@@ -2386,7 +2387,16 @@ export default function TrazabilidadApp() {
               </div>
 
               {movTotal === 0 ? (
-                <EmptyState icon="List" text="No se han encontrado movimientos con estos filtros" width="100%" height={168} />
+                <EmptyState
+                  icon="List"
+                  text={
+                    s.movUnidad
+                      ? 'No se han encontrado movimientos con estos filtros'
+                      : 'Selecciona una unidad para ver sus movimientos'
+                  }
+                  width="100%"
+                  height={168}
+                />
               ) : (
               <div style={{ overflowX: 'auto' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 1772 }}>

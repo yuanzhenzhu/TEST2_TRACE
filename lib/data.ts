@@ -622,7 +622,7 @@ const MOVIMIENTOS_BASE: Omit<MovimientoRow, 'id' | 'fecha'>[] = [
       { title: 'Taller Stock Urbos 100', code: '700000' },
     ],
     despues: [
-      { title: '3220', code: '700000' },
+      { title: '3220', code: '706821' },
       { title: 'Taller Stock Urbos 100', code: '415875' },
     ],
   },

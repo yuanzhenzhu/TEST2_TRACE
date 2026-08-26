@@ -194,7 +194,7 @@ const initialState: AppState = {
   tcAppliedActivo: [],
   tcActivoMenuOpen: false,
   tcPage: 1,
-  tcPageSize: 25,
+  tcPageSize: 10,
 };
 
 function formatFechaHora(d: Date): string {
@@ -459,7 +459,7 @@ function Table({
   );
 }
 
-function OperationChip({ icons, label }: { icons: string[]; label: string }) {
+function OperationChip({ icons, label, wrap }: { icons: string[]; label: string; wrap?: boolean }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, minWidth: 0, width: '100%' }}>
       <span
@@ -489,9 +489,9 @@ function OperationChip({ icons, label }: { icons: string[]; label: string }) {
           lineHeight: '20px',
           letterSpacing: '0.25px',
           color: '#18171C',
-          whiteSpace: 'nowrap',
+          whiteSpace: wrap ? 'normal' : 'nowrap',
           overflow: 'hidden',
-          textOverflow: 'ellipsis',
+          textOverflow: wrap ? 'clip' : 'ellipsis',
         }}
       >
         {label}
@@ -543,6 +543,7 @@ interface DetailTag {
   label: string;
   bg: string;
   fg: string;
+  strike?: boolean;
 }
 
 interface DetailRow {
@@ -558,7 +559,7 @@ interface DetailRow {
   showRotate?: boolean;
 }
 
-const TAG_ANTES: Omit<DetailTag, 'label'> = { bg: '#FECAC8', fg: '#320301' };
+const TAG_ANTES: Omit<DetailTag, 'label'> = { bg: '#FECAC8', fg: '#320301', strike: true };
 const TAG_DESPUES: Omit<DetailTag, 'label'> = { bg: '#BAEBCE', fg: '#474554' };
 
 const UNIDAD_TREE: DetailRow[] = [
@@ -667,13 +668,9 @@ function buildIntercambioUnidadTallerTrees(
   if (!unidadAntes || !tallerAntes || !unidadDespues || !tallerDespues) return null;
 
   let path: TreeNode[] | null = null;
-  let roots: TreeNode[] = [];
   for (const flotaRoots of Object.values(FLEETS)) {
     path = findCodePath(flotaRoots, unidadAntes.code);
-    if (path) {
-      roots = flotaRoots;
-      break;
-    }
+    if (path) break;
   }
   if (!path || path.length === 0) return null;
 
@@ -688,18 +685,16 @@ function buildIntercambioUnidadTallerTrees(
     { label: unidadDespues.code, ...TAG_DESPUES },
   ];
   const tagsTaller = [
-    { label: tallerAntes.code, ...TAG_ANTES },
-    { label: tallerDespues.code, ...TAG_DESPUES },
+    { label: unidadDespues.code, ...TAG_ANTES },
+    { label: unidadAntes.code, ...TAG_DESPUES },
   ];
 
-  const unidadRows: DetailRow[] = [
-    { id: 'u', depth: 0, label: 'Unidad', code: unidad.code, expandIcon: 'ExpandMore', km: unidad.km },
-  ];
-  if (coche) unidadRows.push({ id: 'c', depth: 1, label: coche.label, code: coche.code, expandIcon: 'ExpandMore', km: coche.km });
-  if (bogie) unidadRows.push({ id: 'b', depth: 2, label: bogie.label, code: bogie.code, expandIcon: 'ExpandMore', km: bogie.km });
+  const unidadRows: DetailRow[] = [];
+  if (coche) unidadRows.push({ id: 'c', depth: 0, label: coche.label, code: coche.code, expandIcon: 'ExpandMore', km: coche.km });
+  if (bogie) unidadRows.push({ id: 'b', depth: 1, label: bogie.label, code: bogie.code, expandIcon: 'ExpandMore', km: bogie.km });
   unidadRows.push({
     id: 'e',
-    depth: coche || bogie ? 3 : 1,
+    depth: coche || bogie ? 2 : 0,
     label: eje.label,
     tags: tagsUnidad,
     expandIcon: ruedas.length ? 'ExpandMore' : null,
@@ -709,7 +704,11 @@ function buildIntercambioUnidadTallerTrees(
   });
   const ejeDepth = unidadRows[unidadRows.length - 1].depth;
   ruedas.forEach((rueda, i) => {
-    unidadRows.push({ id: 'r' + i, depth: ejeDepth + 1, label: rueda.label, tags: tagsUnidad, expandIcon: null, highlighted: true, km: rueda.km });
+    const tagsRuedaUnidad = [
+      { label: unidadAntes.code + '-R' + (i + 1), ...TAG_ANTES },
+      { label: unidadDespues.code + '-R' + (i + 1), ...TAG_DESPUES },
+    ];
+    unidadRows.push({ id: 'r' + i, depth: ejeDepth + 1, label: rueda.label, tags: tagsRuedaUnidad, expandIcon: null, highlighted: true, km: rueda.km });
   });
   if (bogie) {
     (bogie.children || [])
@@ -719,22 +718,19 @@ function buildIntercambioUnidadTallerTrees(
   if (coche) {
     (coche.children || [])
       .filter((sib) => sib.tipo === 'Bogie' && sib.id !== bogie?.id)
-      .forEach((sib, i) => unidadRows.push({ id: 'sib-b' + i, depth: ejeDepth - 1, label: sib.label, code: sib.code, expandIcon: 'ChevronRight', km: sib.km }));
+      .forEach((sib, i) => unidadRows.push({ id: 'sib-b' + i, depth: Math.max(ejeDepth - 1, 0), label: sib.label, code: sib.code, expandIcon: 'ChevronRight', km: sib.km }));
   }
   if (unidad.children) {
     unidad.children
       .filter((sib) => sib.tipo === 'Coche' && sib.id !== coche?.id)
-      .forEach((sib, i) => unidadRows.push({ id: 'sib-c' + i, depth: 1, label: sib.label, code: sib.code, expandIcon: 'ChevronRight', km: sib.km }));
+      .forEach((sib, i) => unidadRows.push({ id: 'sib-c' + i, depth: 0, label: sib.label, code: sib.code, expandIcon: 'ChevronRight', km: sib.km }));
   }
-  roots
-    .filter((sib) => sib.id !== unidad.id)
-    .forEach((sib, i) => unidadRows.push({ id: 'sib-u' + i, depth: 0, label: sib.label, code: sib.code, expandIcon: 'ChevronRight', km: sib.km }));
 
   const tallerRows: DetailRow[] = [
     {
       id: 't-e',
       depth: 0,
-      label: eje.label,
+      label: eje.label.replace(/\s*\d+$/, ''),
       tags: tagsTaller,
       expandIcon: ruedas.length ? 'ExpandMore' : null,
       highlighted: true,
@@ -745,7 +741,10 @@ function buildIntercambioUnidadTallerTrees(
       id: 't-r' + i,
       depth: 1,
       label: rueda.label,
-      tags: tagsTaller,
+      tags: [
+        { label: unidadDespues.code + '-R' + (i + 1), ...TAG_ANTES },
+        { label: unidadAntes.code + '-R' + (i + 1), ...TAG_DESPUES },
+      ],
       expandIcon: null,
       highlighted: true,
       km: rueda.km,
@@ -769,7 +768,7 @@ function buildIntercambioUnidadTallerTrees(
   };
 }
 
-function DetailTagPill({ label, bg, fg }: { label: string; bg: string; fg: string }) {
+function DetailTagPill({ label, bg, fg, strike }: { label: string; bg: string; fg: string; strike?: boolean }) {
   return (
     <span
       style={{
@@ -785,6 +784,7 @@ function DetailTagPill({ label, bg, fg }: { label: string; bg: string; fg: strin
         lineHeight: '16px',
         letterSpacing: '0.4px',
         whiteSpace: 'nowrap',
+        textDecoration: strike ? 'line-through' : 'none',
       }}
     >
       {label}
@@ -827,7 +827,7 @@ function DetailTreeRow({ row }: { row: DetailRow }) {
         {row.tags ? (
           <div style={{ display: 'flex', flexDirection: 'row', gap: 4, flexWrap: 'wrap' }}>
             {row.tags.map((t, i) => (
-              <DetailTagPill key={i} label={t.label} bg={t.bg} fg={t.fg} />
+              <DetailTagPill key={i} label={t.label} bg={t.bg} fg={t.fg} strike={t.strike} />
             ))}
           </div>
         ) : (
@@ -847,51 +847,7 @@ function DetailTreeRow({ row }: { row: DetailRow }) {
           </span>
         )}
       </div>
-      {row.extra && (
-        <span
-          style={{
-            flexShrink: 0,
-            display: 'inline-flex',
-            alignItems: 'center',
-            height: 24,
-            padding: '0 12px',
-            borderRadius: 8,
-            background: '#F9F9FB',
-            color: '#18171C',
-            fontSize: 12,
-            fontWeight: 500,
-            lineHeight: '16px',
-            letterSpacing: '0.4px',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {row.extra}
-        </span>
-      )}
-      <span
-        style={{
-          flexShrink: 0,
-          display: 'inline-flex',
-          alignItems: 'center',
-          height: 24,
-          padding: '0 12px',
-          borderRadius: 8,
-          background: '#BAD5E8',
-          color: '#0D324C',
-          fontSize: 12,
-          fontWeight: 500,
-          lineHeight: '16px',
-          letterSpacing: '0.4px',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {row.km}
-      </span>
-      {row.showRotate ? (
-        <MatButtonIcon icon="Rotate" title="Activo rotado" />
-      ) : (
-        <MatButtonIcon icon="Info" title="Más información" />
-      )}
+      {row.showRotate && <MatButtonIcon icon="Rotate" title="Activo rotado" />}
     </div>
   );
 }
@@ -1504,6 +1460,10 @@ export default function TrazabilidadApp() {
       if (label === 'Tipo') return txtCell(r.tipo);
       if (label === 'ID') return idCell(r.code);
       const seed = (Number(r.code) || i + 1) + label.length;
+      if (label === 'Kilómetros') {
+        const hash = (seed * 2654435761) % 300000;
+        return kmCell((50 + hash / 1000).toFixed(3) + 'km', undefined, fechaActualizacion(seed));
+      }
       return txtCell(EXTRA[label] ? EXTRA[label](r, i) : '—', undefined, fechaActualizacion(seed));
     }),
   }));
@@ -2444,8 +2404,21 @@ export default function TrazabilidadApp() {
                       </div>
                     ))}
                   </div>
-                  {movPagedRows.map((row) => (
-                    <div key={row.id} style={{ display: 'flex', flexDirection: 'row', position: 'relative' }}>
+                  {movPagedRows.map((row) => {
+                    const rowClickable = row.operacion === 'Intercambio entre unidad y taller';
+                    return (
+                    <div
+                      key={row.id}
+                      onClick={rowClickable ? () => patch({ screen: 'detalleMovimiento', detalleRowId: row.id }) : undefined}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        position: 'relative',
+                        cursor: rowClickable ? 'pointer' : 'default',
+                      }}
+                      onMouseEnter={(e) => rowClickable && (e.currentTarget.style.background = '#F9F9FB')}
+                      onMouseLeave={(e) => rowClickable && (e.currentTarget.style.background = 'transparent')}
+                    >
                       <div
                         style={{
                           width: 176,
@@ -2527,6 +2500,7 @@ export default function TrazabilidadApp() {
                         <PositionPair items={row.despues} />
                       </div>
                       <div
+                        onClick={(e) => e.stopPropagation()}
                         style={{
                           width: 48,
                           flexShrink: 0,
@@ -2546,6 +2520,7 @@ export default function TrazabilidadApp() {
                       </div>
                       {s.movMenuOpenId === row.id && (
                         <div
+                          onClick={(e) => e.stopPropagation()}
                           style={{
                             position: 'absolute',
                             zIndex: 20,
@@ -2593,7 +2568,8 @@ export default function TrazabilidadApp() {
                         </div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
               )}
@@ -2993,33 +2969,6 @@ export default function TrazabilidadApp() {
             </div>
           </div>
 
-          <div
-            style={{
-              borderRadius: 4,
-              background: '#DFDAF6',
-              display: 'flex',
-              flexDirection: 'row',
-              gap: 8,
-              padding: '12px',
-              alignItems: 'center',
-              boxSizing: 'border-box',
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ color: '#170F3E', display: 'flex', flexShrink: 0 }}>
-              <Icon name="Info" size={24} />
-            </span>
-            <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'row', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
-              <span style={{ fontWeight: 600, fontSize: 14, lineHeight: '20px', letterSpacing: '0.1px', color: '#170F3E' }}>
-                Movimientos posteriores registrados
-              </span>
-              <span style={{ fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px', color: '#170F3E' }}>
-                Las unidades han sufrido cambios posteriores, por lo que esta información puede diferir de la composición actual
-              </span>
-            </div>
-            <MatButtonText label="Ver unidad" style={{ color: '#2B1C74', flexShrink: 0 }} />
-          </div>
-
           <div style={{ borderRadius: 8, background: '#FFF', display: 'flex', flexDirection: 'column', flexGrow: 1, overflow: 'hidden' }}>
             <div style={{ display: 'flex', flexDirection: 'row', gap: 40, padding: 24, boxSizing: 'border-box', alignItems: 'flex-start' }}>
               <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
@@ -3045,7 +2994,7 @@ export default function TrazabilidadApp() {
                 </div>
               </div>
 
-              <div style={{ width: 192, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 40 }}>
+              <div style={{ width: 260, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 12, paddingTop: 40 }}>
                 <div
                   style={{
                     background: '#F9F9FB',
@@ -3057,7 +3006,7 @@ export default function TrazabilidadApp() {
                     gap: 12,
                   }}
                 >
-                  <OperationChip icons={detalleRow.operacionIcons} label={detalleRow.operacion} />
+                  <OperationChip icons={detalleRow.operacionIcons} label={detalleRow.operacion} wrap />
                   <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#000' }}>{detalleRow.fecha}</span>
                   {detalleRotacionDemo && (
                     <span
@@ -3078,9 +3027,6 @@ export default function TrazabilidadApp() {
                       }}
                     >
                       Activos rotados
-                      <span style={{ fontWeight: 500, fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px' }}>
-                        {detalleDynamic?.rotatedCount ?? 0}
-                      </span>
                     </span>
                   )}
                   <div
@@ -3124,12 +3070,9 @@ export default function TrazabilidadApp() {
               </div>
 
               <div style={{ flex: '1 1 0', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: '8px', boxSizing: 'border-box' }}>
-                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Icon name="Warehouse" size={24} />
-                    <span style={{ fontWeight: 500, fontSize: 22, lineHeight: '28px', color: '#000' }}>Taller</span>
-                  </div>
-                  <MatButtonIcon icon="Info" title="Más información" />
+                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, padding: '8px', boxSizing: 'border-box' }}>
+                  <Icon name="Warehouse" size={24} />
+                  <span style={{ fontWeight: 500, fontSize: 22, lineHeight: '28px', color: '#000' }}>Taller</span>
                 </div>
                 <MatDividerHorizontal />
                 <div

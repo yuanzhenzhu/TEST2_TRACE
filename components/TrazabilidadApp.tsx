@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { MouseEvent, ReactNode, useRef, useState } from 'react';
+import { CSSProperties, MouseEvent, ReactNode, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './ui/Icon';
 import { MatButtonFilled, MatButtonIcon, MatButtonOutlined, MatButtonText, MatButtonTonal } from './ui/Buttons';
@@ -912,6 +912,7 @@ function AtributoChipField({
   closeColor,
   onToggleChip,
   onToggleMenu,
+  style,
 }: {
   label: string;
   chips: string[];
@@ -923,9 +924,10 @@ function AtributoChipField({
   closeColor: string;
   onToggleChip: (label: string) => void;
   onToggleMenu: () => void;
+  style?: CSSProperties;
 }) {
   return (
-    <div style={{ position: 'relative', flex: '1 1 340px', maxWidth: 460 }}>
+    <div style={{ position: 'relative', flex: '1 1 340px', maxWidth: 460, ...style }}>
       <div
         style={{
           position: 'relative',
@@ -1493,9 +1495,9 @@ export default function TrazabilidadApp() {
   const unidadOptions = ['Todos'].concat(roots.map((n) => n.code));
   const treeTabs = ['Por estructura', 'Por componente'];
   const shortcutCards = [
-    { title: 'Movimientos', body: 'Texto descriptivo acerca de Movimientos' },
-    { title: 'Talleres', body: 'Texto descriptivo acerca de Información de talleres' },
-    { title: 'Lineas', body: 'Texto descriptivo acerca de Lineas' },
+    { title: 'Movimientos', body: 'Consulta el histórico de operaciones' },
+    { title: 'Talleres', body: 'Información de talleres' },
+    { title: 'Lineas', body: 'Consulta las líneas asignadas a las flotas' },
   ];
 
   return (
@@ -2894,6 +2896,7 @@ export default function TrazabilidadApp() {
                 chipColor="#E5E3EC"
                 chipText="#18171C"
                 closeColor="#474554"
+                style={{ flex: '0 0 auto', width: '100%', maxWidth: 'none' }}
                 onToggleChip={(label) =>
                   patch((prev) => ({
                     tallerFormUso: prev.tallerFormUso.includes(label)

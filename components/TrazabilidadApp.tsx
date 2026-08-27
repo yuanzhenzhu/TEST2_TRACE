@@ -556,11 +556,18 @@ interface DetailRow {
   highlighted?: boolean;
   extra?: string;
   km: string;
-  showRotate?: boolean;
 }
 
 const TAG_ANTES: Omit<DetailTag, 'label'> = { bg: '#FECAC8', fg: '#320301', strike: true };
 const TAG_DESPUES: Omit<DetailTag, 'label'> = { bg: '#BAEBCE', fg: '#474554' };
+
+// Fixed demo codes for the two ruedas of an eje in "Intercambio entre unidad y taller" — rojo
+// (saliente) / verde (entrante) are swapped between unidad and taller since a wheel leaving one
+// side is the wheel arriving at the other.
+const RUEDA_ROTACION_CODES = [
+  { rojo: '082809-0008', verde: '082809-0009' },
+  { rojo: '082810-0001', verde: '082810-0002' },
+];
 
 const UNIDAD_TREE: DetailRow[] = [
   { id: 'u1', depth: 0, label: 'Unidad 1', code: 'F462-U-001', expandIcon: 'ExpandMore', km: '259.245km' },
@@ -584,8 +591,8 @@ const UNIDAD_TREE: DetailRow[] = [
     depth: 4,
     label: 'Rueda1',
     tags: [
-      { label: 'F878-U-541-C1-4585', ...TAG_ANTES },
-      { label: 'F462-U-001-C1-B1-E1', ...TAG_DESPUES },
+      { label: '082809-0008', ...TAG_ANTES },
+      { label: '082809-0009', ...TAG_DESPUES },
     ],
     expandIcon: null,
     highlighted: true,
@@ -596,8 +603,8 @@ const UNIDAD_TREE: DetailRow[] = [
     depth: 4,
     label: 'Rueda 2',
     tags: [
-      { label: 'F878-U-541-C1-4585', ...TAG_ANTES },
-      { label: 'F462-U-001-C1-B1-E1', ...TAG_DESPUES },
+      { label: '082810-0001', ...TAG_ANTES },
+      { label: '082810-0002', ...TAG_DESPUES },
     ],
     expandIcon: null,
     highlighted: true,
@@ -632,8 +639,8 @@ const TALLER_TREE: DetailRow[] = [
     depth: 4,
     label: 'Rueda1',
     tags: [
-      { label: 'F878-U-541-C1-4585', ...TAG_ANTES },
-      { label: 'F462-U-001-C1-B1-E1', ...TAG_DESPUES },
+      { label: '082809-0009', ...TAG_ANTES },
+      { label: '082809-0008', ...TAG_DESPUES },
     ],
     expandIcon: null,
     highlighted: true,
@@ -644,8 +651,8 @@ const TALLER_TREE: DetailRow[] = [
     depth: 4,
     label: 'Rueda 2',
     tags: [
-      { label: 'F878-U-541-C1-4585', ...TAG_ANTES },
-      { label: 'F462-U-001-C1-B1-E1', ...TAG_DESPUES },
+      { label: '082810-0002', ...TAG_ANTES },
+      { label: '082810-0001', ...TAG_DESPUES },
     ],
     expandIcon: null,
     highlighted: true,
@@ -704,10 +711,16 @@ function buildIntercambioUnidadTallerTrees(
   });
   const ejeDepth = unidadRows[unidadRows.length - 1].depth;
   ruedas.forEach((rueda, i) => {
-    const tagsRuedaUnidad = [
-      { label: unidadAntes.code + '-R' + (i + 1), ...TAG_ANTES },
-      { label: unidadDespues.code + '-R' + (i + 1), ...TAG_DESPUES },
-    ];
+    const codes = RUEDA_ROTACION_CODES[i];
+    const tagsRuedaUnidad = codes
+      ? [
+          { label: codes.rojo, ...TAG_ANTES },
+          { label: codes.verde, ...TAG_DESPUES },
+        ]
+      : [
+          { label: unidadAntes.code + '-R' + (i + 1), ...TAG_ANTES },
+          { label: unidadDespues.code + '-R' + (i + 1), ...TAG_DESPUES },
+        ];
     unidadRows.push({ id: 'r' + i, depth: ejeDepth + 1, label: rueda.label, tags: tagsRuedaUnidad, expandIcon: null, highlighted: true, km: rueda.km });
   });
   if (bogie) {
@@ -737,18 +750,19 @@ function buildIntercambioUnidadTallerTrees(
       extra: ruedas.length ? `${ruedas.length} activos` : undefined,
       km: eje.km,
     },
-    ...ruedas.map((rueda, i) => ({
-      id: 't-r' + i,
-      depth: 1,
-      label: rueda.label,
-      tags: [
-        { label: unidadDespues.code + '-R' + (i + 1), ...TAG_ANTES },
-        { label: unidadAntes.code + '-R' + (i + 1), ...TAG_DESPUES },
-      ],
-      expandIcon: null,
-      highlighted: true,
-      km: rueda.km,
-    })),
+    ...ruedas.map((rueda, i) => {
+      const codes = RUEDA_ROTACION_CODES[i];
+      const tagsRuedaTaller = codes
+        ? [
+            { label: codes.verde, ...TAG_ANTES },
+            { label: codes.rojo, ...TAG_DESPUES },
+          ]
+        : [
+            { label: unidadDespues.code + '-R' + (i + 1), ...TAG_ANTES },
+            { label: unidadAntes.code + '-R' + (i + 1), ...TAG_DESPUES },
+          ];
+      return { id: 't-r' + i, depth: 1, label: rueda.label, tags: tagsRuedaTaller, expandIcon: null, highlighted: true, km: rueda.km };
+    }),
   ];
 
   const filterRows = (rows: DetailRow[]): DetailRow[] => {
@@ -847,7 +861,6 @@ function DetailTreeRow({ row }: { row: DetailRow }) {
           </span>
         )}
       </div>
-      {row.showRotate && <MatButtonIcon icon="Rotate" title="Activo rotado" />}
     </div>
   );
 }
@@ -1062,14 +1075,8 @@ export default function TrazabilidadApp() {
   const detalleRow = s.detalleRowId ? MOVIMIENTOS.find((r) => r.id === s.detalleRowId) || null : null;
   const detalleIsUnidadTaller = detalleRow?.operacion === 'Intercambio entre unidad y taller';
   const detalleDynamic = detalleIsUnidadTaller && detalleRow ? buildIntercambioUnidadTallerTrees(detalleRow, s.soloIntercambiados) : null;
-  // Demo: alternate the "rotación de eje" variant on/off across the two occurrences of this
-  // movement type (rep 0 / rep 1 from the MOVIMIENTOS x2 duplication) to show both states.
-  const detalleRotacionDemo = !!detalleDynamic && detalleRow?.id.split('-')[1] === '0';
   const detalleUnidadRows = detalleDynamic?.unidadRows ?? UNIDAD_TREE;
-  const detalleTallerRowsBase = detalleDynamic?.tallerRows ?? TALLER_TREE;
-  const detalleTallerRows = detalleRotacionDemo
-    ? detalleTallerRowsBase.map((r) => (r.highlighted ? { ...r, showRotate: true } : r))
-    : detalleTallerRowsBase;
+  const detalleTallerRows = detalleDynamic?.tallerRows ?? TALLER_TREE;
   const detalleUnidadLabel = detalleDynamic?.unidadLabel ?? 'Unidad 1';
 
   // "Unidad"-shaped titles found in the movimientos mock (e.g. "30801", or "30801 - Eje 1"
@@ -1605,7 +1612,7 @@ export default function TrazabilidadApp() {
                   <span style={{ color: '#18171C', display: 'flex' }}>
                     <Icon name="Train" size={24} />
                   </span>
-                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Flota</span>
+                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>En flota</span>
                 </div>
                 <div
                   style={{
@@ -1667,7 +1674,7 @@ export default function TrazabilidadApp() {
                   <span style={{ color: '#18171C', display: 'flex' }}>
                     <Icon name="Warehouse" size={24} />
                   </span>
-                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Almacén</span>
+                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>En Almacén</span>
                 </div>
                 <div
                   style={{
@@ -1826,7 +1833,7 @@ export default function TrazabilidadApp() {
                   <span style={{ color: '#18171C', display: 'flex' }}>
                     <Icon name="Widgets" size={24} />
                   </span>
-                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Tipo de componente</span>
+                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Listado de atributos</span>
                 </div>
                 <div
                   style={{
@@ -1943,7 +1950,7 @@ export default function TrazabilidadApp() {
               flexShrink: 0,
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center', flexGrow: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center' }}>
               <MatSelect
                 label="Flota"
                 value={s.flota}
@@ -2320,7 +2327,7 @@ export default function TrazabilidadApp() {
             }}
           >
             <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center' }}>
-              <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center', flexGrow: 1 }}>
+              <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center' }}>
                 <MatSelect
                   label="Flota"
                   value={s.flota}
@@ -3021,27 +3028,6 @@ export default function TrazabilidadApp() {
                 >
                   <OperationChip icons={detalleRow.operacionIcons} label={detalleRow.operacion} wrap />
                   <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#000' }}>{detalleRow.fecha}</span>
-                  {detalleRotacionDemo && (
-                    <span
-                      style={{
-                        alignSelf: 'flex-start',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        height: 24,
-                        padding: '0 12px',
-                        borderRadius: 8,
-                        background: '#FAF2BD',
-                        color: '#645911',
-                        fontSize: 12,
-                        lineHeight: '16px',
-                        letterSpacing: '0.4px',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      Activos rotados
-                    </span>
-                  )}
                   <div
                     style={{
                       background: '#FFF',
@@ -3063,16 +3049,6 @@ export default function TrazabilidadApp() {
                         </span>
                       </div>
                     ))}
-                    {detalleRotacionDemo && (
-                      <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, padding: '0 8px' }}>
-                        <span style={{ color: '#474554', display: 'flex', flexShrink: 0 }}>
-                          <Icon name="Rotate" size={14} />
-                        </span>
-                        <span style={{ fontWeight: 600, fontSize: 10, lineHeight: '16px', letterSpacing: '0.5px', color: '#474554' }}>
-                          Rotación
-                        </span>
-                      </div>
-                    )}
                   </div>
                 </div>
                 <SlideToggle
@@ -3137,7 +3113,7 @@ export default function TrazabilidadApp() {
               flexShrink: 0,
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center', flexGrow: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center' }}>
               <MatSelect
                 label="Almacén"
                 value={s.dAlmacen || 'Seleccionar'}
@@ -3400,6 +3376,7 @@ export default function TrazabilidadApp() {
                                         ))}
                                       </div>
                                     )}
+                                    <MatDividerHorizontal />
                                   </div>
                                 ))}
                               </div>
@@ -3680,7 +3657,7 @@ export default function TrazabilidadApp() {
             flexGrow: 1,
           }}
         >
-          <Breadcrumb items={['Consultas', 'Consultar por tipo de componente']} showBack onBack={() => patch({ screen: 'consulta' })} />
+          <Breadcrumb items={['Consultas', 'Listado de atributos']} showBack onBack={() => patch({ screen: 'consulta' })} />
 
           <div
             style={{
@@ -3695,7 +3672,7 @@ export default function TrazabilidadApp() {
               flexShrink: 0,
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center', flexGrow: 1 }}>
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center' }}>
               <MatSelect
                 label="Tipo de componente"
                 value={s.tcDTipo || 'Seleccionar'}
@@ -3827,6 +3804,9 @@ export default function TrazabilidadApp() {
               ) : (
                 <>
                   <Table cols={tcCols} rows={tcPagedRows} onIdInfoClick={(code) => patch({ historialPopupCode: code })} />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <MatButtonOutlined label="Descargar" icon="Download" />
+                  </div>
                   <Paginator
                     page={s.tcPage}
                     pageSize={s.tcPageSize}
@@ -3837,10 +3817,6 @@ export default function TrazabilidadApp() {
                   />
                 </>
               )}
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <MatButtonOutlined label="Descargar" icon="Download" />
             </div>
           </div>
         </div>

@@ -1141,7 +1141,13 @@ export default function TrazabilidadApp() {
   const almacenAllFlat: AlmacenItem[] = ALMACEN_TIPOS.flatMap((t) => almacenData.items[t.tipo] || []);
   const almacenCheckedItems = almacenAllFlat.filter((it) => s.almacenCheckedIds[it.id]);
   const almacenMulti = almacenCheckedItems.length > 1;
-  const almacenSel = !almacenMulti && s.almacenSelectedId ? almacenAllFlat.find((it) => it.id === s.almacenSelectedId) || null : null;
+  const almacenSel = almacenMulti
+    ? null
+    : almacenCheckedItems.length === 1
+    ? almacenCheckedItems[0]
+    : s.almacenSelectedId
+    ? almacenAllFlat.find((it) => it.id === s.almacenSelectedId) || null
+    : null;
   const almacenAllExpanded = ALMACEN_TIPOS.every((t) => s.almacenExpandedTipos[t.tipo]);
   const almacenFilterActive =
     !s.almacenFilter.conHijos || !s.almacenFilter.sinHijos || !s.almacenFilter.conPadre || !s.almacenFilter.sinPadre;
@@ -1198,7 +1204,7 @@ export default function TrazabilidadApp() {
           const keys = Object.keys(next);
           return {
             checkedIds: next,
-            selected: keys.length === 1 ? keys[0] : prev.selected,
+            selected: keys.length === 1 ? keys[0] : keys.length === 0 ? null : prev.selected,
             tab: keys.length > 1 ? 0 : prev.tab,
           };
         });
@@ -1288,7 +1294,12 @@ export default function TrazabilidadApp() {
             if (all) delete next[n.id];
             else next[n.id] = true;
           });
-          return { checkedIds: next, selected: all ? prev.selected : list[0].id, tab: 0 };
+          const keys = Object.keys(next);
+          return {
+            checkedIds: next,
+            selected: keys.length === 1 ? keys[0] : keys.length === 0 ? null : prev.selected,
+            tab: 0,
+          };
         }),
     });
     if (!open) return;
@@ -1307,7 +1318,12 @@ export default function TrazabilidadApp() {
             const next = { ...prev.checkedIds };
             if (next[n.id]) delete next[n.id];
             else next[n.id] = true;
-            return { checkedIds: next, selected: n.id, tab: Object.keys(next).length > 1 ? 0 : prev.tab };
+            const keys = Object.keys(next);
+            return {
+              checkedIds: next,
+              selected: keys.length === 1 ? keys[0] : keys.length === 0 ? null : prev.selected,
+              tab: keys.length > 1 ? 0 : prev.tab,
+            };
           }),
       });
     });
@@ -3213,8 +3229,18 @@ export default function TrazabilidadApp() {
                       {ALMACEN_TIPOS.map((t) => {
                         const rawItems = almacenData.items[t.tipo] || [];
                         const filteredItems = rawItems.filter(almacenFilterFn).filter(almacenSearchFn);
+                        if (almacenSearchActive && filteredItems.length === 0) return null;
                         const expanded = almacenSearchActive ? filteredItems.length > 0 : !!s.almacenExpandedTipos[t.tipo];
                         const allCheckedInTipo = filteredItems.length > 0 && filteredItems.every((it) => s.almacenCheckedIds[it.id]);
+                        const someCheckedInTipo = filteredItems.some((it) => s.almacenCheckedIds[it.id]);
+                        const tipoCheckState: boolean | 'indeterminate' = allCheckedInTipo ? true : someCheckedInTipo ? 'indeterminate' : false;
+                        const toggleTipoChecked = () =>
+                          patch((prev) => {
+                            const next = { ...prev.almacenCheckedIds };
+                            if (allCheckedInTipo) filteredItems.forEach((it) => delete next[it.id]);
+                            else filteredItems.forEach((it) => (next[it.id] = true));
+                            return { almacenCheckedIds: next, almacenSelectedId: null, tab: 0 };
+                          });
                         return (
                           <div key={t.tipo}>
                             <div
@@ -3237,6 +3263,7 @@ export default function TrazabilidadApp() {
                               <span style={{ color: '#18171C', display: 'flex', flexShrink: 0 }}>
                                 <Icon name={expanded ? 'ExpandMore' : 'ChevronRight'} size={20} />
                               </span>
+                              <MatCheckbox checked={tipoCheckState} onChange={toggleTipoChecked} />
                               <span style={{ flex: 1, fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{t.label}</span>
                               <span
                                 title={almacenFilterActive ? `Filtrado: ${filteredItems.length} de ${almacenData.counts[t.tipo] || 0}` : undefined}
@@ -3261,23 +3288,6 @@ export default function TrazabilidadApp() {
 
                             {expanded && (
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40, padding: '8px 8px 8px 28px' }}>
-                                  <span style={{ width: 20, flexShrink: 0 }} />
-                                  <MatCheckbox
-                                    checked={allCheckedInTipo}
-                                    onChange={() =>
-                                      patch((prev) => {
-                                        const next = { ...prev.almacenCheckedIds };
-                                        if (allCheckedInTipo) filteredItems.forEach((it) => delete next[it.id]);
-                                        else filteredItems.forEach((it) => (next[it.id] = true));
-                                        return { almacenCheckedIds: next, almacenSelectedId: null };
-                                      })
-                                    }
-                                  />
-                                  <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>
-                                    Todos ({filteredItems.length} {t.plural})
-                                  </span>
-                                </div>
                                 <MatDividerHorizontal />
                                 {filteredItems.map((it) => (
                                   <div key={it.id}>
@@ -3315,7 +3325,14 @@ export default function TrazabilidadApp() {
                                         cursor: 'pointer',
                                         background: s.almacenSelectedId === it.id ? '#DFDAF6' : 'transparent',
                                       }}
-                                      onClick={() => patch({ almacenSelectedId: it.id, tab: 0 })}
+                                      onClick={() =>
+                                        patch((prev) => {
+                                          const next = { ...prev.almacenCheckedIds };
+                                          if (next[it.id]) delete next[it.id];
+                                          else next[it.id] = true;
+                                          return { almacenCheckedIds: next, almacenSelectedId: null, tab: 0 };
+                                        })
+                                      }
                                       onMouseEnter={(e) => {
                                         if (s.almacenSelectedId !== it.id) e.currentTarget.style.background = '#F4F3FA';
                                       }}
@@ -3343,7 +3360,7 @@ export default function TrazabilidadApp() {
                                             const next = { ...prev.almacenCheckedIds };
                                             if (next[it.id]) delete next[it.id];
                                             else next[it.id] = true;
-                                            return { almacenCheckedIds: next, almacenSelectedId: null };
+                                            return { almacenCheckedIds: next, almacenSelectedId: null, tab: 0 };
                                           })
                                         }
                                       />

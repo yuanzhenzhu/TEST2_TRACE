@@ -1652,7 +1652,7 @@ export default function TrazabilidadApp() {
                     />
                   </div>
                   <MatButtonTonal
-                    label="Consultar por flota"
+                    label="Consultar"
                     onClick={() =>
                       patch({
                         screen: 'flota',
@@ -1714,7 +1714,7 @@ export default function TrazabilidadApp() {
                     />
                   </div>
                   <MatButtonTonal
-                    label="Consultar por almacén"
+                    label="Consultar"
                     onClick={() =>
                       patch({
                         screen: 'almacen',
@@ -1776,7 +1776,7 @@ export default function TrazabilidadApp() {
                     />
                   </div>
                   <MatButtonTonal
-                    label="Consultar por número de serie"
+                    label="Consultar"
                     disabled={!s.dNumeroSerie.trim()}
                     onClick={() => {
                       const code = s.dNumeroSerie.trim();
@@ -1874,7 +1874,7 @@ export default function TrazabilidadApp() {
                     />
                   </div>
                   <MatButtonTonal
-                    label="Consultar por tipo de componente"
+                    label="Consultar"
                     disabled={!s.dTipoComponente}
                     onClick={() =>
                       patch((prev) => ({

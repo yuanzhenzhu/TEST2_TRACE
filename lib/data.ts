@@ -619,7 +619,7 @@ const MOVIMIENTOS_BASE: Omit<MovimientoRow, 'id' | 'fecha'>[] = [
     componente: 'Eje',
     antes: [
       { title: '3220', code: '415875' },
-      { title: 'Taller Stock Urbos 100', code: '700000' },
+      { title: 'Taller Stock Urbos 100', code: '706821' },
     ],
     despues: [
       { title: '3220', code: '706821' },

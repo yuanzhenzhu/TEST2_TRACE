@@ -1440,9 +1440,9 @@ export default function TrazabilidadApp() {
     : ['Histórico de vida', 'Atributos de activo', 'Atributos de posición'];
   const tab = s.tab;
   const showHistorial = !multi && !!sel && s.tab === 0;
-  const showAtributosActivo = !!sel && ((multi && s.tab === 0) || (!multi && s.tab === 1));
-  const showAtributosPos = !!sel && ((multi && s.tab === 1) || (!multi && s.tab === 2));
-  const noSelection = !sel;
+  const showAtributosActivo = (multi && s.tab === 0) || (!multi && !!sel && s.tab === 1);
+  const showAtributosPos = (multi && s.tab === 1) || (!multi && !!sel && s.tab === 2);
+  const noSelection = !sel && !multi;
 
   const almacenAtrNodes: AlmacenItem[] = almacenMulti ? almacenCheckedItems : almacenSel ? [almacenSel] : [];
   const almacenActivoColsLabels = ['Tipo', 'ID'].concat(appA);

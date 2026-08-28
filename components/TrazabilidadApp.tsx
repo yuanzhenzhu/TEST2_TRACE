@@ -1606,8 +1606,6 @@ export default function TrazabilidadApp() {
             boxSizing: 'border-box',
           }}
         >
-          <span style={{ fontSize: 36, lineHeight: '44px', color: '#000' }}>Consultar por...</span>
-
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch' }}>
             <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'stretch' }}>
               <div
@@ -1690,7 +1688,7 @@ export default function TrazabilidadApp() {
                   <span style={{ color: '#18171C', display: 'flex' }}>
                     <Icon name="Warehouse" size={24} />
                   </span>
-                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>En Almacén</span>
+                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>En almacén</span>
                 </div>
                 <div
                   style={{

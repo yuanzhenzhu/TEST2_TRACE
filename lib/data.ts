@@ -20,6 +20,9 @@ export interface TreeNode {
 
 const U3220_KM = '125.668km';
 const U3230_KM = '120.670km';
+// Eje 1 (and its Rueda 1/2, Reductora 1/2) of unidades 3220 and 3230 track their own total
+// mileage separately from the rest of the unidad, instead of inheriting the unidad-wide km.
+const EJE1_OVERRIDE_KM = '289.000km';
 const Z3240_KM = '98.412km';
 const Z3250_KM = '102.150km';
 
@@ -76,13 +79,15 @@ function coche(n: number, i: number, opts: CocheOpts): TreeNode {
           const idx = (localSeq - 1) * 2 + (e - 1); // 0..19, unique within this unidad
           const ejeNum = ejeRandom ? shuffle(idx, 10000, 6803) : idx;
           const ejeCode = String(ejeBase + ejeNum);
+          const isEje1 = idx === 0 && (unidadCode === '3220' || unidadCode === '3230');
+          const ejeKm = isEje1 ? EJE1_OVERRIDE_KM : unidadKm;
           const child = (label: string, code: string, tipo: Tipo, k: string): TreeNode => ({
             id: 'c' + n + 'b' + b + 'e' + e + '-' + k,
             label,
             code,
             tipo,
             depth: 4,
-            km: unidadKm,
+            km: ejeKm,
             unidadCode,
             cocheCode: String(n),
             bogieCode,
@@ -100,7 +105,7 @@ function coche(n: number, i: number, opts: CocheOpts): TreeNode {
             code: ejeCode,
             tipo: 'Eje',
             depth: 3,
-            km: unidadKm,
+            km: ejeKm,
             unidadCode,
             cocheCode: String(n),
             bogieCode,
@@ -573,10 +578,15 @@ export function historial(sel: TreeNode | null): { id: string; cells: Cell[] }[]
   const [k1, k2, k3] = splitKm(k);
   // Most recent ("En servicio") first, oldest last — matches the info icon on Kilómetros
   // only ever showing on the most recent (first) row.
+  // Each row's desmontaje is the next (more recent) row's montaje — a continuous chain with
+  // no gaps or overlaps, ending with the current mount ("En servicio"). The oldest row (h4)
+  // predates any unidad mount — the component was still sitting in taller stock.
+  const dash = anc.map(() => txt('-'));
   return [
     { id: 'h1', cells: lead(c, b, e).concat([txt('2025-06-10 09:15'), bool(), km(k1, undefined, fechaActualizacion(seedBase + 1))]) },
-    { id: 'h2', cells: lead(alt1.coche, alt1.bogie, e).concat([txt('2024-06-10 08:30'), txt('2025-07-10 16:45'), km(k2)]) },
-    { id: 'h3', cells: lead(alt2.coche, alt2.bogie, e).concat([txt('2023-06-10 11:20'), txt('2025-07-11 09:40'), km(k3)]) },
+    { id: 'h2', cells: lead(alt1.coche, alt1.bogie, e).concat([txt('2024-06-10 08:30'), txt('2025-06-10 09:15'), km(k2)]) },
+    { id: 'h3', cells: lead(alt2.coche, alt2.bogie, e).concat([txt('2023-06-10 11:20'), txt('2024-06-10 08:30'), km(k3)]) },
+    { id: 'h4', cells: dash.concat([txt('2022-06-10 11:20'), txt('2023-06-10 11:20'), txt('Taller Urbos 100')]) },
   ];
 }
 

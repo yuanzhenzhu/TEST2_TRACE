@@ -86,13 +86,14 @@ interface AppState {
   movPageSize: number;
   detalleRowId: string | null;
   soloIntercambiados: boolean;
+  combChipsFlota: string[];
+  combFlotaMenuOpen: boolean;
   almacen: string;
   dAlmacen: string;
-  dTipoComponente: string;
   dNumeroSerie: string;
   numeroSerieNotFound: string | null;
   almacenApplied: boolean;
-  almacenExpandedTipos: Record<string, boolean>;
+  almacenSelectedTipo: string | null;
   almacenCheckedIds: Record<string, boolean>;
   almacenSelectedId: string | null;
   almacenBuscar: string;
@@ -103,9 +104,9 @@ interface AppState {
   tcChipsFlota: string[];
   tcAppliedFlota: string[];
   tcFlotaMenuOpen: boolean;
-  tcChipsTaller: string[];
-  tcAppliedTaller: string[];
-  tcTallerMenuOpen: boolean;
+  tcChipsAlmacen: string[];
+  tcAppliedAlmacen: string[];
+  tcAlmacenMenuOpen: boolean;
   tcChipsActivo: string[];
   tcAppliedActivo: string[];
   tcActivoMenuOpen: boolean;
@@ -140,6 +141,8 @@ const initialState: AppState = {
   dUnidad: '',
   flotaBuscar: '',
   flotaSearchAt: '',
+  combChipsFlota: [],
+  combFlotaMenuOpen: false,
   hijo: 'Ruedas',
   chipsActivo: ['Kilómetros'],
   chipsPos: [],
@@ -159,11 +162,10 @@ const initialState: AppState = {
   soloIntercambiados: false,
   almacen: 'Taller Stock Urbos 100',
   dAlmacen: '',
-  dTipoComponente: '',
   dNumeroSerie: '',
   numeroSerieNotFound: null,
   almacenApplied: false,
-  almacenExpandedTipos: {},
+  almacenSelectedTipo: null,
   almacenCheckedIds: {},
   almacenSelectedId: null,
   almacenBuscar: '',
@@ -187,9 +189,9 @@ const initialState: AppState = {
   tcChipsFlota: [],
   tcAppliedFlota: [],
   tcFlotaMenuOpen: false,
-  tcChipsTaller: [],
-  tcAppliedTaller: [],
-  tcTallerMenuOpen: false,
+  tcChipsAlmacen: [],
+  tcAppliedAlmacen: [],
+  tcAlmacenMenuOpen: false,
   tcChipsActivo: [],
   tcAppliedActivo: [],
   tcActivoMenuOpen: false,
@@ -241,6 +243,68 @@ function Tooltip({ text, children }: { text: string; children: ReactNode }) {
           >
             {text}
           </span>,
+          document.body
+        )}
+    </span>
+  );
+}
+
+const RESULTADOS_INFO_ROWS: { label: string; color: string }[] = [
+  { label: 'Histórico de vida', color: '#5CB9AF' },
+  { label: 'Atributos de posición', color: '#EDC240' },
+  { label: 'Atributos por activo', color: '#AAE03E' },
+];
+
+function infoItems(values: [string, string, string]) {
+  return RESULTADOS_INFO_ROWS.map((row, i) => ({ ...row, value: values[i] }));
+}
+
+function InfoStatsPanel({ items, children }: { items: { label: string; value: string; color: string }[]; children: ReactNode }) {
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const ref = useRef<HTMLSpanElement>(null);
+
+  const show = () => {
+    const rect = ref.current?.getBoundingClientRect();
+    if (rect) setPos({ top: rect.top - 8, left: rect.left + rect.width / 2 });
+  };
+
+  return (
+    <span
+      ref={ref}
+      style={{ position: 'relative', display: 'inline-flex' }}
+      onMouseEnter={show}
+      onMouseLeave={() => setPos(null)}
+    >
+      {children}
+      {pos &&
+        createPortal(
+          <div
+            style={{
+              position: 'fixed',
+              top: pos.top,
+              left: pos.left,
+              transform: 'translate(-50%, -100%)',
+              background: '#FFF',
+              color: '#18171C',
+              border: '1px solid #C8C7D1',
+              borderRadius: 4,
+              padding: '8px 12px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 4,
+              boxShadow: '0 2px 8px rgba(24,23,28,0.18)',
+              zIndex: 1000,
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {items.map((it, i) => (
+              <div key={i} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{it.label}</span>
+                <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', fontWeight: 500, color: '#18171C' }}>{it.value}</span>
+              </div>
+            ))}
+          </div>,
           document.body
         )}
     </span>
@@ -423,7 +487,19 @@ function Table({
                     background: '#FFF',
                   }}
                 >
-                  <TagSemanticStatus status="Info" label={c.text} />
+                  <span
+                    style={{
+                      fontSize: 14,
+                      lineHeight: '20px',
+                      letterSpacing: '0.25px',
+                      color: '#18171C',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                    }}
+                  >
+                    {c.text}
+                  </span>
                   {c.meta && (
                     <Tooltip text={c.meta || ''}>
                       <span style={{ color: '#474554', display: 'flex' }}>
@@ -1148,7 +1224,6 @@ export default function TrazabilidadApp() {
     : s.almacenSelectedId
     ? almacenAllFlat.find((it) => it.id === s.almacenSelectedId) || null
     : null;
-  const almacenAllExpanded = ALMACEN_TIPOS.every((t) => s.almacenExpandedTipos[t.tipo]);
   const almacenFilterActive =
     !s.almacenFilter.conHijos || !s.almacenFilter.sinHijos || !s.almacenFilter.conPadre || !s.almacenFilter.sinPadre;
 
@@ -1373,11 +1448,6 @@ export default function TrazabilidadApp() {
   const hijoMinWidth = hijoValue === 'Coches' ? Math.round((2 + cocheCount * 2) * (1750 / 12)) : undefined;
   const hijoRowsData = buildHijoRows(sel, hijoValue);
 
-  const movHistCols = [{ label: 'Fecha' }, { label: 'Tipo' }, { label: 'Con padre' }, { label: 'Con hijos' }];
-  const movHistRows = [
-    { id: 'm1', cells: [txtCell('2025-06-30 08:20'), txtCell('Intercambio entre unidades'), txtCell('Sí'), txtCell('No')] },
-  ];
-
   // ---- atributos tab ----
   const activoOpts = ['Kilómetros', 'Ciclos', 'Horas', 'Fecha overhaul', 'Km overhaul', 'Modelo', 'Material'];
   const posOpts = ['Location', 'Visibility', 'CAF-Code', 'Aux_Posición', 'Knuckle'];
@@ -1470,12 +1540,12 @@ export default function TrazabilidadApp() {
   const flotaOptions = ['Urbos 100', 'Zaragoza 3000'];
   const almacenOptions = Object.keys(ALMACENES);
 
-  const tcCanShow = (s.tcAppliedFlota.length > 0 || s.tcAppliedTaller.length > 0) && s.tcAppliedActivo.length > 0;
+  const tcCanShow = (s.tcAppliedFlota.length > 0 || s.tcAppliedAlmacen.length > 0) && s.tcAppliedActivo.length > 0;
   const tcRows = tcCanShow && s.tcTipo ? buscarPorTipo(s.tcTipo as Tipo) : [];
   const tcFilteredRows = tcRows.filter((r) =>
     r.ubicacion === 'Flota'
       ? s.tcAppliedFlota.includes(r.ubicacionNombre)
-      : s.tcAppliedTaller.includes(r.ubicacionNombre)
+      : s.tcAppliedAlmacen.includes(r.ubicacionNombre)
   );
   const tcColsLabels = ['Ubicación', 'Tipo', 'ID'].concat(s.tcAppliedActivo);
   const tcCols = tcColsLabels.map((label) => ({ label }));
@@ -1555,7 +1625,7 @@ export default function TrazabilidadApp() {
             width={61}
             height={24}
             style={{ cursor: 'pointer' }}
-            onClick={() => patch({ screen: 'consulta' })}
+            onClick={() => patch({ screen: 'consulta', dUnidad: '' })}
           />
           <PiecesNavbarItemGroup items={['Consultas', 'Operaciones', 'Registro']} selected={0} />
         </div>
@@ -1606,7 +1676,10 @@ export default function TrazabilidadApp() {
             boxSizing: 'border-box',
           }}
         >
+          <span style={{ fontSize: 36, lineHeight: '44px', color: '#000' }}>Consultar</span>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch' }}>
+            <span style={{ fontSize: 24, lineHeight: '32px', color: '#000' }}>Por ubicación</span>
             <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'stretch' }}>
               <div
                 style={{
@@ -1622,11 +1695,30 @@ export default function TrazabilidadApp() {
                   boxSizing: 'border-box',
                 }}
               >
-                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                  <span style={{ color: '#18171C', display: 'flex' }}>
-                    <Icon name="Train" size={24} />
-                  </span>
-                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>En flota</span>
+                <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' }}>
+                  <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <span style={{ color: '#18171C', display: 'flex' }}>
+                      <Icon name="Train" size={24} />
+                    </span>
+                    <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Flota</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <InfoStatsPanel items={infoItems(['Sí', 'Sí', 'Sí'])}>
+                      <span
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#474554',
+                        }}
+                      >
+                        <Icon name="Info" size={18} />
+                      </span>
+                    </InfoStatsPanel>
+                  </div>
                 </div>
                 <div
                   style={{
@@ -1634,39 +1726,50 @@ export default function TrazabilidadApp() {
                     background: '#F9F9FB',
                     border: '1px solid #C8C7D1',
                     display: 'flex',
-                    flexDirection: 'row',
+                    flexDirection: 'column',
                     gap: 16,
                     padding: 24,
-                    alignItems: 'flex-end',
                     boxSizing: 'border-box',
                     alignSelf: 'stretch',
                   }}
                 >
-                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                    <MatSelect
-                      label="Flota"
-                      value={s.flota}
-                      options={flotaOptions}
-                      width="100%"
-                      onSelect={(v) => patch({ flota: v, unidad: 'Todos', selected: null, expanded: {} })}
+                  <MatSelect
+                    label="Flota"
+                    value={s.flota}
+                    options={flotaOptions}
+                    width="100%"
+                    onSelect={(v) => patch({ flota: v, unidad: 'Todos', dUnidad: '', selected: null, expanded: {} })}
+                  />
+                  <MatSelect
+                    label="Unidad"
+                    value={s.dUnidad || unidadOptions[1] || 'Todos'}
+                    options={unidadOptions}
+                    width="100%"
+                    onSelect={(v) => patch({ dUnidad: v })}
+                  />
+                  <div>
+                    <MatButtonTonal
+                      label="Consultar"
+                      onClick={() => {
+                        const searchAt = formatFechaHora(new Date());
+                        patch((prev) => {
+                          const unidadValue = prev.dUnidad || unidadOptions[1] || 'Todos';
+                          return {
+                            screen: 'flota',
+                            selected: null,
+                            expanded: {},
+                            applied: true,
+                            unidad: unidadValue,
+                            dUnidad: unidadValue,
+                            checkedIds: {},
+                            typeOpen: {},
+                            flotaBuscar: '',
+                            flotaSearchAt: searchAt,
+                          };
+                        });
+                      }}
                     />
                   </div>
-                  <MatButtonTonal
-                    label="Consultar"
-                    onClick={() =>
-                      patch({
-                        screen: 'flota',
-                        selected: null,
-                        expanded: {},
-                        applied: false,
-                        dUnidad: '',
-                        checkedIds: {},
-                        typeOpen: {},
-                        flotaBuscar: '',
-                        flotaSearchAt: '',
-                      })
-                    }
-                  />
                 </div>
               </div>
 
@@ -1684,11 +1787,30 @@ export default function TrazabilidadApp() {
                   boxSizing: 'border-box',
                 }}
               >
-                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                  <span style={{ color: '#18171C', display: 'flex' }}>
-                    <Icon name="Warehouse" size={24} />
-                  </span>
-                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>En almacén</span>
+                <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' }}>
+                  <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <span style={{ color: '#18171C', display: 'flex' }}>
+                      <Icon name="Warehouse" size={24} />
+                    </span>
+                    <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Almacén</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <InfoStatsPanel items={infoItems(['Sí', 'No', 'Sí'])}>
+                      <span
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#474554',
+                        }}
+                      >
+                        <Icon name="Info" size={18} />
+                      </span>
+                    </InfoStatsPanel>
+                  </div>
                 </div>
                 <div
                   style={{
@@ -1696,46 +1818,185 @@ export default function TrazabilidadApp() {
                     background: '#F9F9FB',
                     border: '1px solid #C8C7D1',
                     display: 'flex',
-                    flexDirection: 'row',
+                    flexDirection: 'column',
                     gap: 16,
                     padding: 24,
-                    alignItems: 'flex-end',
                     boxSizing: 'border-box',
                     alignSelf: 'stretch',
                   }}
                 >
-                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                    <MatSelect
-                      label="Almacén"
-                      value={s.almacen}
-                      options={almacenOptions}
-                      width="100%"
-                      onSelect={(v) => patch({ almacen: v })}
+                  <MatSelect
+                    label="Almacén"
+                    value={s.almacen}
+                    options={almacenOptions}
+                    width="100%"
+                    onSelect={(v) => patch({ almacen: v })}
+                  />
+                  <div>
+                    <MatButtonTonal
+                      label="Consultar"
+                      onClick={() =>
+                        patch({
+                          screen: 'almacen',
+                          dAlmacen: s.almacen,
+                          almacenApplied: true,
+                          almacenSelectedTipo: null,
+                          almacenCheckedIds: {},
+                          almacenSelectedId: null,
+                          almacenBuscar: '',
+                        })
+                      }
                     />
                   </div>
-                  <MatButtonTonal
-                    label="Consultar"
-                    onClick={() =>
-                      patch({
-                        screen: 'almacen',
-                        dAlmacen: s.almacen,
-                        almacenApplied: true,
-                        almacenExpandedTipos: {},
-                        almacenCheckedIds: {},
-                        almacenSelectedId: null,
-                        almacenBuscar: '',
-                      })
+                </div>
+              </div>
+
+              <div
+                style={{
+                  flex: '1 1 0',
+                  minWidth: 0,
+                  borderRadius: 8,
+                  background: '#FFF',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 16,
+                  padding: 24,
+                  alignItems: 'flex-start',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'row', gap: 16, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', alignSelf: 'stretch' }}>
+                  <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <span style={{ color: '#18171C', display: 'flex', gap: 2, flexShrink: 0 }}>
+                      <Icon name="Train" size={20} />
+                      <Icon name="Warehouse" size={20} />
+                    </span>
+                    <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C', whiteSpace: 'nowrap' }}>Flota y almacén</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <span
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        height: 24,
+                        padding: '4px 12px',
+                        borderRadius: 8,
+                        background: '#FAF2BD',
+                        color: '#645911',
+                        fontSize: 12,
+                        fontWeight: 500,
+                        lineHeight: '16px',
+                        letterSpacing: '0.4px',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      Solo atributos por activo
+                    </span>
+                    <InfoStatsPanel items={infoItems(['No', 'No', 'Sí'])}>
+                      <span
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: '50%',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#474554',
+                        }}
+                      >
+                        <Icon name="Info" size={18} />
+                      </span>
+                    </InfoStatsPanel>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    borderRadius: 8,
+                    background: '#F9F9FB',
+                    border: '1px solid #C8C7D1',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 16,
+                    padding: 24,
+                    boxSizing: 'border-box',
+                    alignSelf: 'stretch',
+                  }}
+                >
+                  <AtributoChipField
+                    label="Flota"
+                    chips={s.combChipsFlota}
+                    options={flotaOptions}
+                    empty={s.combChipsFlota.length === 0}
+                    menuOpen={s.combFlotaMenuOpen}
+                    chipColor="#E5E3EC"
+                    chipText="#18171C"
+                    closeColor="#474554"
+                    onToggleChip={(label) =>
+                      patch((prev) => ({
+                        combChipsFlota: prev.combChipsFlota.includes(label)
+                          ? prev.combChipsFlota.filter((c) => c !== label)
+                          : prev.combChipsFlota.concat([label]),
+                      }))
                     }
+                    onToggleMenu={() => patch((prev) => ({ combFlotaMenuOpen: !prev.combFlotaMenuOpen, tcAlmacenMenuOpen: false }))}
+                    style={{ flex: '1 1 auto', maxWidth: 'none' }}
                   />
+                  <AtributoChipField
+                    label="Almacén"
+                    chips={s.tcChipsAlmacen}
+                    options={almacenOptions}
+                    empty={s.tcChipsAlmacen.length === 0}
+                    menuOpen={s.tcAlmacenMenuOpen}
+                    chipColor="#E5E3EC"
+                    chipText="#18171C"
+                    closeColor="#474554"
+                    onToggleChip={(label) =>
+                      patch((prev) => ({
+                        tcChipsAlmacen: prev.tcChipsAlmacen.includes(label)
+                          ? prev.tcChipsAlmacen.filter((c) => c !== label)
+                          : prev.tcChipsAlmacen.concat([label]),
+                      }))
+                    }
+                    onToggleMenu={() => patch((prev) => ({ tcAlmacenMenuOpen: !prev.tcAlmacenMenuOpen, combFlotaMenuOpen: false }))}
+                    style={{ flex: '1 1 auto', maxWidth: 'none' }}
+                  />
+                  <div>
+                    <MatButtonTonal
+                      label="Consultar"
+                      disabled={s.combChipsFlota.length === 0 && s.tcChipsAlmacen.length === 0}
+                      onClick={() =>
+                        patch((prev) => ({
+                          screen: 'tipoComponente',
+                          tcTipo: '',
+                          tcDTipo: '',
+                          tcChipsFlota: prev.combChipsFlota,
+                          tcAppliedFlota: prev.combChipsFlota,
+                          tcAppliedAlmacen: prev.tcChipsAlmacen,
+                          tcChipsActivo: [],
+                          tcAppliedActivo: [],
+                          tcPage: 1,
+                        }))
+                      }
+                      style={
+                        s.combChipsFlota.length || s.tcChipsAlmacen.length
+                          ? undefined
+                          : { background: 'rgba(13,13,13,0.1)', color: 'rgba(24,23,28,0.38)' }
+                      }
+                    />
+                  </div>
                 </div>
               </div>
             </div>
+          </div>
 
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'stretch' }}>
+            <span style={{ fontSize: 24, lineHeight: '32px', color: '#000' }}>Por número de serie</span>
             <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'stretch' }}>
               <div
                 style={{
                   flex: '1 1 0',
                   minWidth: 0,
+                  maxWidth: 'calc((100% - 32px) / 3)',
                   borderRadius: 8,
                   background: '#FFF',
                   display: 'flex',
@@ -1808,7 +2069,7 @@ export default function TrazabilidadApp() {
                           almacen: hit.almacenNombre,
                           dAlmacen: hit.almacenNombre,
                           almacenApplied: true,
-                          almacenExpandedTipos: {},
+                          almacenSelectedTipo: hit.item.tipo,
                           almacenCheckedIds: {},
                           almacenSelectedId: hit.item.id,
                           almacenBuscar: code,
@@ -1828,109 +2089,43 @@ export default function TrazabilidadApp() {
                   )}
                 </div>
               </div>
-
-              <div
-                style={{
-                  flex: '1 1 0',
-                  minWidth: 0,
-                  borderRadius: 8,
-                  background: '#FFF',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 16,
-                  padding: 24,
-                  alignItems: 'flex-start',
-                  boxSizing: 'border-box',
-                }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'row', gap: 8, alignItems: 'center' }}>
-                  <span style={{ color: '#18171C', display: 'flex' }}>
-                    <Icon name="Widgets" size={24} />
-                  </span>
-                  <span style={{ fontWeight: 500, fontSize: 24, lineHeight: '32px', color: '#18171C' }}>Listado de atributos</span>
-                </div>
-                <div
-                  style={{
-                    borderRadius: 8,
-                    background: '#F9F9FB',
-                    border: '1px solid #C8C7D1',
-                    display: 'flex',
-                    flexDirection: 'row',
-                    gap: 16,
-                    padding: 24,
-                    alignItems: 'center',
-                    flexWrap: 'wrap',
-                    boxSizing: 'border-box',
-                    alignSelf: 'stretch',
-                  }}
-                >
-                  <div style={{ flex: '1 1 0', minWidth: 0 }}>
-                    <MatSelect
-                      label="Tipo de componente"
-                      value={s.dTipoComponente || 'Seleccionar'}
-                      options={TIPOS_COMPONENTE}
-                      width="100%"
-                      onSelect={(v) => patch({ dTipoComponente: v })}
-                    />
-                  </div>
-                  <MatButtonTonal
-                    label="Consultar"
-                    disabled={!s.dTipoComponente}
-                    onClick={() =>
-                      patch((prev) => ({
-                        screen: 'tipoComponente',
-                        tcTipo: prev.dTipoComponente,
-                        tcDTipo: prev.dTipoComponente,
-                        tcChipsFlota: [],
-                        tcAppliedFlota: [],
-                        tcChipsTaller: [],
-                        tcAppliedTaller: [],
-                        tcChipsActivo: [],
-                        tcAppliedActivo: [],
-                        tcPage: 1,
-                      }))
-                    }
-                    style={s.dTipoComponente ? undefined : { background: 'rgba(13,13,13,0.1)', color: 'rgba(24,23,28,0.38)' }}
-                  />
-                </div>
-              </div>
             </div>
+          </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 32 }}>
-              <span style={{ fontSize: 24, lineHeight: '32px', color: '#000' }}>Otras búsquedas</span>
-              <div style={{ display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'stretch' }}>
-                {shortcutCards.map((card) => {
-                  const onOpen =
-                    card.title === 'Movimientos'
-                      ? () => patch({ screen: 'movimientos' })
-                      : card.title === 'Talleres'
-                      ? () => patch({ screen: 'talleres' })
-                      : undefined;
-                  return (
-                    <div
-                      key={card.title}
-                      onClick={onOpen}
-                      style={{
-                        flex: '1 1 0',
-                        borderRadius: 8,
-                        background: '#F9F9FB',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        gap: 16,
-                        padding: 24,
-                        boxSizing: 'border-box',
-                        cursor: onOpen ? 'pointer' : 'default',
-                      }}
-                    >
-                      <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 24, lineHeight: '32px', color: '#18171C' }}>{card.title}</span>
-                        <MatButtonIcon icon="ChevronRight" onClick={onOpen} />
-                      </div>
-                      <span style={{ fontSize: 16, lineHeight: '25px', letterSpacing: '0.5px', color: '#18171C' }}>{card.body}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <span style={{ fontSize: 24, lineHeight: '32px', color: '#000' }}>Otras búsquedas</span>
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 24, alignItems: 'stretch' }}>
+              {shortcutCards.map((card) => {
+                const onOpen =
+                  card.title === 'Movimientos'
+                    ? () => patch({ screen: 'movimientos' })
+                    : card.title === 'Talleres'
+                    ? () => patch({ screen: 'talleres' })
+                    : undefined;
+                return (
+                  <div
+                    key={card.title}
+                    onClick={onOpen}
+                    style={{
+                      flex: '1 1 0',
+                      borderRadius: 8,
+                      background: '#F9F9FB',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 16,
+                      padding: 24,
+                      boxSizing: 'border-box',
+                      cursor: onOpen ? 'pointer' : 'default',
+                    }}
+                  >
+                    <div style={{ display: 'flex', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 24, lineHeight: '32px', color: '#18171C' }}>{card.title}</span>
+                      <MatButtonIcon icon="ChevronRight" onClick={onOpen} />
                     </div>
-                  );
-                })}
-              </div>
+                    <span style={{ fontSize: 16, lineHeight: '25px', letterSpacing: '0.5px', color: '#18171C' }}>{card.body}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -1949,7 +2144,7 @@ export default function TrazabilidadApp() {
             flexGrow: 1,
           }}
         >
-          <Breadcrumb items={['Consultas', 'Consultar por flota']} showBack onBack={() => patch({ screen: 'consulta' })} />
+          <Breadcrumb items={['Consultas', 'Consultar por flota']} showBack onBack={() => patch({ screen: 'consulta', dUnidad: '' })} />
 
           <div
             style={{
@@ -2239,16 +2434,6 @@ export default function TrazabilidadApp() {
                         </div>
                       </div>
                     )}
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
-                      <span style={{ fontWeight: 500, fontSize: 16, lineHeight: '25px', letterSpacing: '0.15px', color: '#18171C' }}>
-                        Movimientos
-                      </span>
-                      <Table cols={movHistCols} rows={movHistRows} />
-                      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                        <MatButtonOutlined label="Descargar" icon="Download" />
-                      </div>
-                    </div>
                   </div>
                 )}
 
@@ -2326,7 +2511,7 @@ export default function TrazabilidadApp() {
             flexGrow: 1,
           }}
         >
-          <Breadcrumb items={['Consultar', 'Movimientos']} showBack onBack={() => patch({ screen: 'consulta' })} />
+          <Breadcrumb items={['Consultar', 'Movimientos']} showBack onBack={() => patch({ screen: 'consulta', dUnidad: '' })} />
 
           <div
             style={{
@@ -2635,7 +2820,7 @@ export default function TrazabilidadApp() {
             flexGrow: 1,
           }}
         >
-          <Breadcrumb items={['Consultas', 'Talleres']} showBack onBack={() => patch({ screen: 'consulta' })} />
+          <Breadcrumb items={['Consultas', 'Talleres']} showBack onBack={() => patch({ screen: 'consulta', dUnidad: '' })} />
 
           <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 36, lineHeight: '44px', color: '#18171C' }}>Talleres</span>
@@ -3112,7 +3297,7 @@ export default function TrazabilidadApp() {
             flexGrow: 1,
           }}
         >
-          <Breadcrumb items={['Consultas', 'Consultar por almacén']} showBack onBack={() => patch({ screen: 'consulta' })} />
+          <Breadcrumb items={['Consultas', 'Consultar por almacén']} showBack onBack={() => patch({ screen: 'consulta', dUnidad: '' })} />
 
           <div
             style={{
@@ -3142,7 +3327,7 @@ export default function TrazabilidadApp() {
                 patch((prev) => ({
                   almacenApplied: true,
                   almacen: prev.dAlmacen || prev.almacen,
-                  almacenExpandedTipos: {},
+                  almacenSelectedTipo: null,
                   almacenCheckedIds: {},
                   almacenSelectedId: null,
                   almacenBuscar: '',
@@ -3170,8 +3355,64 @@ export default function TrazabilidadApp() {
                   <EmptyState icon="List" text="Elige un almacén y pulsa Aplicar" width="100%" height={168} />
                 )}
 
-                {s.almacenApplied && (
+                {s.almacenApplied && !s.almacenSelectedTipo && (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {ALMACEN_TIPOS.map((t) => {
+                      const rawItems = almacenData.items[t.tipo] || [];
+                      const count = rawItems.filter(almacenFilterFn).length;
+                      return (
+                        <div key={t.tipo}>
+                          <div
+                            onClick={() => patch({ almacenSelectedTipo: t.tipo, almacenBuscar: '' })}
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              gap: 8,
+                              minHeight: 48,
+                              padding: '8px',
+                              borderRadius: 8,
+                              cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => (e.currentTarget.style.background = '#F4F3FA')}
+                            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                          >
+                            <span style={{ flex: 1, fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{t.label}</span>
+                            <span
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                height: 24,
+                                padding: '0 12px',
+                                borderRadius: 8,
+                                background: '#F9F9FB',
+                                color: '#18171C',
+                                fontSize: 12,
+                                fontWeight: 500,
+                                lineHeight: '16px',
+                                letterSpacing: '0.4px',
+                              }}
+                            >
+                              {count}
+                            </span>
+                            <span style={{ color: '#474554', display: 'flex' }}>
+                              <Icon name="ChevronRight" size={20} />
+                            </span>
+                          </div>
+                          <MatDividerHorizontal />
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {s.almacenApplied && s.almacenSelectedTipo && (
                   <>
+                    <Breadcrumb
+                      items={['Almacén', ALMACEN_TIPOS.find((t) => t.tipo === s.almacenSelectedTipo)?.label || '']}
+                      showBack
+                      onBack={() => patch({ almacenSelectedTipo: null, almacenBuscar: '' })}
+                    />
                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16 }}>
                       <div style={{ flex: '1 1 0', minWidth: 0 }}>
                         <MatFormField
@@ -3203,17 +3444,6 @@ export default function TrazabilidadApp() {
                       )}
                       <div style={{ display: 'flex', flexDirection: 'row', gap: 4, flexShrink: 0 }}>
                         <MatButtonIcon
-                          icon="UnfoldLess"
-                          title={almacenAllExpanded ? 'Colapsar todo' : 'Expandir todo'}
-                          onClick={() =>
-                            patch(() => {
-                              const next: Record<string, boolean> = {};
-                              if (!almacenAllExpanded) ALMACEN_TIPOS.forEach((t) => (next[t.tipo] = true));
-                              return { almacenExpandedTipos: next };
-                            })
-                          }
-                        />
-                        <MatButtonIcon
                           icon="Filter"
                           title="Filtros"
                           onClick={() => patch({ almacenFilterOpen: true })}
@@ -3224,181 +3454,118 @@ export default function TrazabilidadApp() {
                     <MatDividerHorizontal />
 
                     <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 680, overflowY: 'auto' }}>
-                      {ALMACEN_TIPOS.map((t) => {
-                        const rawItems = almacenData.items[t.tipo] || [];
+                      {(() => {
+                        const t = s.almacenSelectedTipo as string;
+                        const rawItems = almacenData.items[t] || [];
                         const filteredItems = rawItems.filter(almacenFilterFn).filter(almacenSearchFn);
-                        if (almacenSearchActive && filteredItems.length === 0) return null;
-                        const expanded = almacenSearchActive ? filteredItems.length > 0 : !!s.almacenExpandedTipos[t.tipo];
-                        const allCheckedInTipo = filteredItems.length > 0 && filteredItems.every((it) => s.almacenCheckedIds[it.id]);
-                        const someCheckedInTipo = filteredItems.some((it) => s.almacenCheckedIds[it.id]);
-                        const tipoCheckState: boolean | 'indeterminate' = allCheckedInTipo ? true : someCheckedInTipo ? 'indeterminate' : false;
-                        const toggleTipoChecked = () =>
-                          patch((prev) => {
-                            const next = { ...prev.almacenCheckedIds };
-                            if (allCheckedInTipo) filteredItems.forEach((it) => delete next[it.id]);
-                            else filteredItems.forEach((it) => (next[it.id] = true));
-                            return { almacenCheckedIds: next, almacenSelectedId: null, tab: 0 };
-                          });
-                        return (
-                          <div key={t.tipo}>
+                        return filteredItems.map((it) => (
+                          <div key={it.id}>
+                            {it.groupLabel && (
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  gap: 8,
+                                  padding: '8px',
+                                  minHeight: 40,
+                                  opacity: 0.4,
+                                }}
+                              >
+                                <span style={{ color: '#18171C', display: 'flex', flexShrink: 0 }}>
+                                  <Icon name="ExpandMore" size={20} />
+                                </span>
+                                <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                                  <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{it.groupLabel}</span>
+                                  <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{it.groupCode}</span>
+                                </span>
+                                <TagSemanticStatus status="Info" label={it.groupKm || it.km} />
+                              </div>
+                            )}
                             <div
-                              onClick={() =>
-                                patch((prev) => ({ almacenExpandedTipos: { ...prev.almacenExpandedTipos, [t.tipo]: !prev.almacenExpandedTipos[t.tipo] } }))
-                              }
                               style={{
                                 display: 'flex',
                                 flexDirection: 'row',
                                 alignItems: 'center',
                                 gap: 8,
-                                minHeight: 40,
                                 padding: '8px',
+                                minHeight: 40,
                                 borderRadius: 8,
                                 cursor: 'pointer',
+                                background: s.almacenSelectedId === it.id ? '#DFDAF6' : 'transparent',
                               }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = '#F4F3FA')}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                              onClick={() =>
+                                patch((prev) => {
+                                  const next = { ...prev.almacenCheckedIds };
+                                  if (next[it.id]) delete next[it.id];
+                                  else next[it.id] = true;
+                                  return { almacenCheckedIds: next, almacenSelectedId: null, tab: 0 };
+                                })
+                              }
+                              onMouseEnter={(e) => {
+                                if (s.almacenSelectedId !== it.id) e.currentTarget.style.background = '#F4F3FA';
+                              }}
+                              onMouseLeave={(e) => {
+                                if (s.almacenSelectedId !== it.id) e.currentTarget.style.background = 'transparent';
+                              }}
                             >
-                              <span style={{ color: '#18171C', display: 'flex', flexShrink: 0 }}>
-                                <Icon name={expanded ? 'ExpandMore' : 'ChevronRight'} size={20} />
+                              {it.conHijos && it.children ? (
+                                <span
+                                  style={{ color: '#18171C', display: 'flex', cursor: 'pointer', flexShrink: 0 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    patch((prev) => ({ almacenExpandedIds: { ...prev.almacenExpandedIds, [it.id]: !prev.almacenExpandedIds[it.id] } }));
+                                  }}
+                                >
+                                  <Icon name={s.almacenExpandedIds[it.id] ? 'ExpandMore' : 'ChevronRight'} size={20} />
+                                </span>
+                              ) : (
+                                <span style={{ width: 20, flexShrink: 0 }} />
+                              )}
+                              <MatCheckbox
+                                checked={!!s.almacenCheckedIds[it.id]}
+                                onChange={() =>
+                                  patch((prev) => {
+                                    const next = { ...prev.almacenCheckedIds };
+                                    if (next[it.id]) delete next[it.id];
+                                    else next[it.id] = true;
+                                    return { almacenCheckedIds: next, almacenSelectedId: null, tab: 0 };
+                                  })
+                                }
+                              />
+                              <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                                <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{it.label}</span>
+                                <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{it.code}</span>
                               </span>
-                              <MatCheckbox checked={tipoCheckState} onChange={toggleTipoChecked} />
-                              <span style={{ flex: 1, fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{t.label}</span>
-                              <span
-                                title={almacenFilterActive ? `Filtrado: ${filteredItems.length} de ${almacenData.counts[t.tipo] || 0}` : undefined}
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  height: 24,
-                                  padding: '0 12px',
-                                  borderRadius: 8,
-                                  background: almacenFilterActive ? '#DFDAF6' : '#F9F9FB',
-                                  color: almacenFilterActive ? '#170F3E' : '#18171C',
-                                  fontSize: 12,
-                                  fontWeight: 500,
-                                  lineHeight: '16px',
-                                  letterSpacing: '0.4px',
-                                }}
-                              >
-                                {filteredItems.length}
-                                {almacenFilterActive ? ` / ${almacenData.counts[t.tipo] || 0}` : ''}
-                              </span>
+                              <TagSemanticStatus status="Info" label={it.km} />
                             </div>
-
-                            {expanded && (
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <MatDividerHorizontal />
-                                {filteredItems.map((it) => (
-                                  <div key={it.id}>
-                                    {it.groupLabel && (
-                                      <div
-                                        style={{
-                                          display: 'flex',
-                                          flexDirection: 'row',
-                                          alignItems: 'center',
-                                          gap: 8,
-                                          padding: '8px 8px 8px 28px',
-                                          minHeight: 40,
-                                          opacity: 0.4,
-                                        }}
-                                      >
-                                        <span style={{ color: '#18171C', display: 'flex', flexShrink: 0 }}>
-                                          <Icon name="ExpandMore" size={20} />
-                                        </span>
-                                        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                                          <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{it.groupLabel}</span>
-                                          <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{it.groupCode}</span>
-                                        </span>
-                                        <TagSemanticStatus status="Info" label={it.groupKm || it.km} />
-                                      </div>
-                                    )}
-                                    <div
-                                      style={{
-                                        display: 'flex',
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 8,
-                                        padding: '8px 8px 8px 28px',
-                                        minHeight: 40,
-                                        borderRadius: 8,
-                                        cursor: 'pointer',
-                                        background: s.almacenSelectedId === it.id ? '#DFDAF6' : 'transparent',
-                                      }}
-                                      onClick={() =>
-                                        patch((prev) => {
-                                          const next = { ...prev.almacenCheckedIds };
-                                          if (next[it.id]) delete next[it.id];
-                                          else next[it.id] = true;
-                                          return { almacenCheckedIds: next, almacenSelectedId: null, tab: 0 };
-                                        })
-                                      }
-                                      onMouseEnter={(e) => {
-                                        if (s.almacenSelectedId !== it.id) e.currentTarget.style.background = '#F4F3FA';
-                                      }}
-                                      onMouseLeave={(e) => {
-                                        if (s.almacenSelectedId !== it.id) e.currentTarget.style.background = 'transparent';
-                                      }}
-                                    >
-                                      {it.conHijos && it.children ? (
-                                        <span
-                                          style={{ color: '#18171C', display: 'flex', cursor: 'pointer', flexShrink: 0 }}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            patch((prev) => ({ almacenExpandedIds: { ...prev.almacenExpandedIds, [it.id]: !prev.almacenExpandedIds[it.id] } }));
-                                          }}
-                                        >
-                                          <Icon name={s.almacenExpandedIds[it.id] ? 'ExpandMore' : 'ChevronRight'} size={20} />
-                                        </span>
-                                      ) : (
-                                        <span style={{ width: 20, flexShrink: 0 }} />
-                                      )}
-                                      <MatCheckbox
-                                        checked={!!s.almacenCheckedIds[it.id]}
-                                        onChange={() =>
-                                          patch((prev) => {
-                                            const next = { ...prev.almacenCheckedIds };
-                                            if (next[it.id]) delete next[it.id];
-                                            else next[it.id] = true;
-                                            return { almacenCheckedIds: next, almacenSelectedId: null, tab: 0 };
-                                          })
-                                        }
-                                      />
-                                      <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                                        <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{it.label}</span>
-                                        <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{it.code}</span>
-                                      </span>
-                                      <TagSemanticStatus status="Info" label={it.km} />
-                                    </div>
-                                    {it.conHijos && it.children && s.almacenExpandedIds[it.id] && (
-                                      <div style={{ display: 'flex', flexDirection: 'column', opacity: 0.4 }}>
-                                        {it.children.map((child) => (
-                                          <div
-                                            key={child.id}
-                                            style={{
-                                              display: 'flex',
-                                              flexDirection: 'row',
-                                              alignItems: 'center',
-                                              gap: 8,
-                                              padding: '8px 8px 8px 76px',
-                                              minHeight: 40,
-                                            }}
-                                          >
-                                            <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                                              <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{child.label}</span>
-                                              <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{child.code}</span>
-                                            </span>
-                                            <TagSemanticStatus status="Info" label={child.km} />
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                    <MatDividerHorizontal />
+                            {it.conHijos && it.children && s.almacenExpandedIds[it.id] && (
+                              <div style={{ display: 'flex', flexDirection: 'column', opacity: 0.4 }}>
+                                {it.children.map((child) => (
+                                  <div
+                                    key={child.id}
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'row',
+                                      alignItems: 'center',
+                                      gap: 8,
+                                      padding: '8px 8px 8px 48px',
+                                      minHeight: 40,
+                                    }}
+                                  >
+                                    <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                                      <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{child.label}</span>
+                                      <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{child.code}</span>
+                                    </span>
+                                    <TagSemanticStatus status="Info" label={child.km} />
                                   </div>
                                 ))}
                               </div>
                             )}
+                            <MatDividerHorizontal />
                           </div>
-                        );
-                      })}
+                        ));
+                      })()}
                     </div>
                   </>
                 )}
@@ -3672,7 +3839,7 @@ export default function TrazabilidadApp() {
             flexGrow: 1,
           }}
         >
-          <Breadcrumb items={['Consultas', 'Listado de atributos']} showBack onBack={() => patch({ screen: 'consulta' })} />
+          <Breadcrumb items={['Consultas', 'Flota y almacén']} showBack onBack={() => patch({ screen: 'consulta', dUnidad: '' })} />
 
           <div
             style={{
@@ -3682,31 +3849,61 @@ export default function TrazabilidadApp() {
               flexDirection: 'row',
               gap: 16,
               padding: 16,
-              alignItems: 'center',
+              alignItems: 'flex-end',
+              flexWrap: 'wrap',
               boxSizing: 'border-box',
               flexShrink: 0,
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, alignItems: 'center' }}>
-              <MatSelect
-                label="Tipo de componente"
-                value={s.tcDTipo || 'Seleccionar'}
-                options={TIPOS_COMPONENTE}
-                width={250}
-                onSelect={(v) => patch({ tcDTipo: v })}
-              />
-            </div>
+            <AtributoChipField
+              label="Flota"
+              chips={s.tcChipsFlota}
+              options={flotaOptions}
+              empty={s.tcChipsFlota.length === 0}
+              menuOpen={s.tcFlotaMenuOpen}
+              chipColor="#E5E3EC"
+              chipText="#18171C"
+              closeColor="#474554"
+              onToggleChip={(label) =>
+                patch((prev) => ({
+                  tcChipsFlota: prev.tcChipsFlota.includes(label)
+                    ? prev.tcChipsFlota.filter((c) => c !== label)
+                    : prev.tcChipsFlota.concat([label]),
+                }))
+              }
+              onToggleMenu={() =>
+                patch((prev) => ({ tcFlotaMenuOpen: !prev.tcFlotaMenuOpen, tcAlmacenMenuOpen: false, tcActivoMenuOpen: false }))
+              }
+            />
+            <AtributoChipField
+              label="Almacén"
+              chips={s.tcChipsAlmacen}
+              options={almacenOptions}
+              empty={s.tcChipsAlmacen.length === 0}
+              menuOpen={s.tcAlmacenMenuOpen}
+              chipColor="#D7E3FF"
+              chipText="#0B3A8C"
+              closeColor="#0B3A8C"
+              onToggleChip={(label) =>
+                patch((prev) => ({
+                  tcChipsAlmacen: prev.tcChipsAlmacen.includes(label)
+                    ? prev.tcChipsAlmacen.filter((c) => c !== label)
+                    : prev.tcChipsAlmacen.concat([label]),
+                }))
+              }
+              onToggleMenu={() =>
+                patch((prev) => ({ tcAlmacenMenuOpen: !prev.tcAlmacenMenuOpen, tcFlotaMenuOpen: false, tcActivoMenuOpen: false }))
+              }
+            />
             <MatButtonTonal
               label="Aplicar"
               onClick={() =>
                 patch((prev) => ({
-                  tcTipo: prev.tcDTipo,
-                  tcChipsFlota: [],
-                  tcAppliedFlota: [],
-                  tcChipsTaller: [],
-                  tcAppliedTaller: [],
-                  tcChipsActivo: [],
-                  tcAppliedActivo: [],
+                  tcAppliedFlota: prev.tcChipsFlota.slice(),
+                  tcAppliedAlmacen: prev.tcChipsAlmacen.slice(),
+                  tcFlotaMenuOpen: false,
+                  tcAlmacenMenuOpen: false,
+                  tcPage: 1,
                 }))
               }
             />
@@ -3724,83 +3921,38 @@ export default function TrazabilidadApp() {
               flexGrow: 1,
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <AtributoChipField
-                label="Flota"
-                chips={s.tcChipsFlota}
-                options={flotaOptions}
-                empty={s.tcChipsFlota.length === 0}
-                menuOpen={s.tcFlotaMenuOpen}
-                chipColor="#E5E3EC"
-                chipText="#18171C"
-                closeColor="#474554"
-                onToggleChip={(label) =>
-                  patch((prev) => ({
-                    tcChipsFlota: prev.tcChipsFlota.includes(label)
-                      ? prev.tcChipsFlota.filter((c) => c !== label)
-                      : prev.tcChipsFlota.concat([label]),
-                  }))
-                }
-                onToggleMenu={() =>
-                  patch((prev) => ({ tcFlotaMenuOpen: !prev.tcFlotaMenuOpen, tcTallerMenuOpen: false, tcActivoMenuOpen: false }))
-                }
-              />
-              <AtributoChipField
-                label="Taller"
-                chips={s.tcChipsTaller}
-                options={almacenOptions}
-                empty={s.tcChipsTaller.length === 0}
-                menuOpen={s.tcTallerMenuOpen}
-                chipColor="#D7E3FF"
-                chipText="#0B3A8C"
-                closeColor="#0B3A8C"
-                onToggleChip={(label) =>
-                  patch((prev) => ({
-                    tcChipsTaller: prev.tcChipsTaller.includes(label)
-                      ? prev.tcChipsTaller.filter((c) => c !== label)
-                      : prev.tcChipsTaller.concat([label]),
-                  }))
-                }
-                onToggleMenu={() =>
-                  patch((prev) => ({ tcTallerMenuOpen: !prev.tcTallerMenuOpen, tcFlotaMenuOpen: false, tcActivoMenuOpen: false }))
-                }
-              />
-              <AtributoChipField
-                label="Atributo activo"
-                chips={s.tcChipsActivo}
-                options={activoOpts}
-                empty={s.tcChipsActivo.length === 0}
-                menuOpen={s.tcActivoMenuOpen}
-                chipColor="#E5E3EC"
-                chipText="#18171C"
-                closeColor="#474554"
-                onToggleChip={(label) =>
-                  patch((prev) => ({
-                    tcChipsActivo: prev.tcChipsActivo.includes(label)
-                      ? prev.tcChipsActivo.filter((c) => c !== label)
-                      : prev.tcChipsActivo.concat([label]),
-                  }))
-                }
-                onToggleMenu={() =>
-                  patch((prev) => ({ tcActivoMenuOpen: !prev.tcActivoMenuOpen, tcFlotaMenuOpen: false, tcTallerMenuOpen: false }))
-                }
-              />
-              <div style={{ display: 'flex', alignItems: 'center', minHeight: 56 }}>
-                <MatButtonTonal
-                  label="Aplicar"
-                  onClick={() =>
-                    patch((prev) => ({
-                      tcAppliedFlota: prev.tcChipsFlota.slice(),
-                      tcAppliedTaller: prev.tcChipsTaller.slice(),
-                      tcAppliedActivo: prev.tcChipsActivo.slice(),
-                      tcFlotaMenuOpen: false,
-                      tcTallerMenuOpen: false,
-                      tcActivoMenuOpen: false,
-                      tcPage: 1,
-                    }))
+            <div style={{ display: 'flex', flexDirection: 'row', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', flexDirection: 'row', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end', flex: '1 1 auto' }}>
+                <MatSelect
+                  label="Tipo de componente"
+                  value={s.tcTipo || 'Seleccionar'}
+                  options={TIPOS_COMPONENTE}
+                  width={250}
+                  onSelect={(v) => patch({ tcTipo: v, tcDTipo: v, tcPage: 1 })}
+                />
+                <AtributoChipField
+                  label="Atributo activo"
+                  chips={s.tcChipsActivo}
+                  options={activoOpts}
+                  empty={s.tcChipsActivo.length === 0}
+                  menuOpen={s.tcActivoMenuOpen}
+                  chipColor="#E5E3EC"
+                  chipText="#18171C"
+                  closeColor="#474554"
+                  onToggleChip={(label) =>
+                    patch((prev) => {
+                      const next = prev.tcChipsActivo.includes(label)
+                        ? prev.tcChipsActivo.filter((c) => c !== label)
+                        : prev.tcChipsActivo.concat([label]);
+                      return { tcChipsActivo: next, tcAppliedActivo: next, tcPage: 1 };
+                    })
+                  }
+                  onToggleMenu={() =>
+                    patch((prev) => ({ tcActivoMenuOpen: !prev.tcActivoMenuOpen, tcFlotaMenuOpen: false, tcAlmacenMenuOpen: false }))
                   }
                 />
               </div>
+              <MatButtonFilled label="Descargar" icon="Download" />
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -3810,7 +3962,7 @@ export default function TrazabilidadApp() {
               {!tcCanShow ? (
                 <EmptyState
                   icon="Component"
-                  text="Elige al menos una flota o un taller, y un atributo activo, y pulsa Aplicar"
+                  text="Elige al menos una flota o un almacén, y un atributo activo, y pulsa Aplicar"
                   width="100%"
                   height={168}
                 />
@@ -3819,9 +3971,6 @@ export default function TrazabilidadApp() {
               ) : (
                 <>
                   <Table cols={tcCols} rows={tcPagedRows} onIdInfoClick={(code) => patch({ historialPopupCode: code })} />
-                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                    <MatButtonOutlined label="Descargar" icon="Download" />
-                  </div>
                   <Paginator
                     page={s.tcPage}
                     pageSize={s.tcPageSize}

@@ -402,6 +402,8 @@ export interface AlmacenItem {
   groupCode?: string;
   groupKm?: string;
   children?: AlmacenItem[];
+  // Only set when viewing the combined "Todos" almacén — which real almacén this item lives in.
+  almacenNombre?: string;
 }
 
 export interface Almacen {
@@ -469,23 +471,26 @@ function buildAlmacen(seedOffset: number, bogiePrefix: string, ruedaPrefix: stri
     bogie.children = (bogie.children || []).concat(eje);
   });
 
-  // Wire "con hijos" ejes to a real rueda + reductora (marks those "con padre" in their own lists).
+  // Wire "con hijos" ejes to two real ruedas (marks those ruedas "con padre" in their own list).
   let hijoCursor = 0;
   ejes.forEach((eje, i) => {
     if (!EJE_HIJO[i]) return;
-    const rueda = ruedas[hijoCursor];
-    const reductora = reductoras[hijoCursor];
-    hijoCursor++;
-    rueda.conPadre = true;
-    rueda.groupLabel = eje.label;
-    rueda.groupCode = eje.code;
-    rueda.groupKm = eje.km;
-    reductora.conPadre = true;
-    reductora.groupLabel = eje.label;
-    reductora.groupCode = eje.code;
-    reductora.groupKm = eje.km;
+    const rueda1 = ruedas[hijoCursor];
+    const rueda2 = ruedas[hijoCursor + 1];
+    hijoCursor += 2;
+    [rueda1, rueda2].forEach((rueda) => {
+      rueda.conPadre = true;
+      rueda.groupLabel = eje.label;
+      rueda.groupCode = eje.code;
+      rueda.groupKm = eje.km;
+    });
     eje.conHijos = true;
-    eje.children = [rueda, reductora];
+    eje.children = [rueda1, rueda2];
+    // Eje 706803's ruedas are freshly replaced — 0km.
+    if (eje.code === '706803') {
+      rueda1.km = fmtKm(0);
+      rueda2.km = fmtKm(0);
+    }
   });
 
   const items: Record<string, AlmacenItem[]> = { Bogie: bogies, Eje: ejes, Rueda: ruedas, Reductora: reductoras };
@@ -497,6 +502,24 @@ export const ALMACENES: Record<string, Almacen> = {
   'Taller Stock Urbos 100': { ...buildAlmacen(0, '5149-WH-', '082850-', '9427/W/'), code: 'Taller Stock Urbos 100' },
   'Taller Tranvía Zaragoza': { ...buildAlmacen(137, '5149-WZ-', '082860-', '9427/Z/'), code: 'Taller Tranvía Zaragoza' },
 };
+
+function stampAlmacenNombre(item: AlmacenItem, nombre: string): AlmacenItem {
+  return { ...item, almacenNombre: nombre, children: item.children?.map((c) => stampAlmacenNombre(c, nombre)) };
+}
+
+// "Todos" — every almacén's items combined into one list per tipo, each item tagged with
+// which real almacén it came from (shown as a location tag only in this combined view).
+export function mergedAlmacen(): Almacen {
+  const nombres = Object.keys(ALMACENES);
+  const tipos: Tipo[] = ['Bogie', 'Eje', 'Rueda', 'Reductora'];
+  const items: Record<string, AlmacenItem[]> = {};
+  const counts: Record<string, number> = {};
+  tipos.forEach((t) => {
+    items[t] = nombres.flatMap((nombre) => (ALMACENES[nombre].items[t] || []).map((it) => stampAlmacenNombre(it, nombre)));
+    counts[t] = items[t].length;
+  });
+  return { code: 'Todos', counts, items };
+}
 
 export const ALMACEN_TIPOS: { tipo: Tipo; label: string; plural: string }[] = [
   { tipo: 'Bogie', label: 'Bogie', plural: 'bogies' },
@@ -554,6 +577,8 @@ function altMounts(unidadCode: string, currentCocheCode: string): { coche: strin
   ];
 }
 
+const TALLER_POOL = ['Taller Stock Urbos 100', 'Taller Tranvía Zaragoza', 'Taller Central Beasain'];
+
 export function historial(sel: TreeNode | null): { id: string; cells: Cell[] }[] {
   const unidadCode = sel?.unidadCode || '3220';
   const c = sel?.cocheCode || '3221';
@@ -575,18 +600,28 @@ export function historial(sel: TreeNode | null): { id: string; cells: Cell[] }[]
   const lead = (cc: string, bb: string, ee: string) =>
     anc.map((t) => id(({ Unidad: unidadCode, Coche: cc, Bogie: bb, Eje: ee } as Record<string, string>)[t]));
   const [alt1, alt2] = altMounts(unidadCode, c);
-  const [k1, k2, k3] = splitKm(k);
+  // Split by seed rather than a fixed 55/30/15 — siblings sharing the same total km (e.g. the
+  // two ruedas of one eje) still land on different partial-km numbers instead of an identical row.
+  const p1 = 45 + (seedBase % 20);
+  const p2 = 15 + ((seedBase * 3) % 20);
+  const total = toKmNumber(k);
+  const k1 = fmtKm(Math.round((total * p1) / 100));
+  const k2 = fmtKm(Math.round((total * p2) / 100));
+  const k3 = fmtKm(Math.max(0, total - toKmNumber(k1) - toKmNumber(k2)));
   // Most recent ("En servicio") first, oldest last — matches the info icon on Kilómetros
   // only ever showing on the most recent (first) row.
   // Each row's desmontaje is the next (more recent) row's montaje — a continuous chain with
   // no gaps or overlaps, ending with the current mount ("En servicio"). The oldest row (h4)
-  // predates any unidad mount — the component was still sitting in taller stock.
+  // predates any unidad mount — the component was still sitting in taller stock; which taller
+  // varies by seed so siblings (e.g. Rueda 1/2, Reductora 1/2 of the same eje) don't all read
+  // the same.
   const dash = anc.map(() => txt('-'));
+  const tallerPrevio = TALLER_POOL[seedBase % TALLER_POOL.length];
   return [
     { id: 'h1', cells: lead(c, b, e).concat([txt('2025-06-10 09:15'), bool(), km(k1, undefined, fechaActualizacion(seedBase + 1))]) },
     { id: 'h2', cells: lead(alt1.coche, alt1.bogie, e).concat([txt('2024-06-10 08:30'), txt('2025-06-10 09:15'), km(k2)]) },
     { id: 'h3', cells: lead(alt2.coche, alt2.bogie, e).concat([txt('2023-06-10 11:20'), txt('2024-06-10 08:30'), km(k3)]) },
-    { id: 'h4', cells: dash.concat([txt('2022-06-10 11:20'), txt('2023-06-10 11:20'), txt('Taller Urbos 100')]) },
+    { id: 'h4', cells: dash.concat([txt('2022-06-10 11:20'), txt('2023-06-10 11:20'), txt(tallerPrevio)]) },
   ];
 }
 

@@ -46,6 +46,7 @@ import {
   findCodePath,
   hijoRows as buildHijoRows,
   historial as buildHistorial,
+  mergedAlmacen,
   id as idCell,
   km as kmCell,
   txt as txtCell,
@@ -1203,7 +1204,7 @@ export default function TrazabilidadApp() {
   const isTipoComponente = s.screen === 'tipoComponente';
 
   const isAlmacen = s.screen === 'almacen';
-  const almacenData = ALMACENES[s.almacen];
+  const almacenData = s.almacen === 'Todos' ? mergedAlmacen() : ALMACENES[s.almacen];
   const almacenFilterFn = (it: AlmacenItem) => {
     const f = s.almacenFilter;
     const hijosOk = it.conHijos ? f.conHijos : f.sinHijos;
@@ -1226,6 +1227,19 @@ export default function TrazabilidadApp() {
     : null;
   const almacenFilterActive =
     !s.almacenFilter.conHijos || !s.almacenFilter.sinHijos || !s.almacenFilter.conPadre || !s.almacenFilter.sinPadre;
+
+  const almacenTipoRawItems: AlmacenItem[] = s.almacenSelectedTipo ? almacenData.items[s.almacenSelectedTipo] || [] : [];
+  const almacenTipoFilteredItems = almacenTipoRawItems.filter(almacenFilterFn).filter(almacenSearchFn);
+  const almacenTipoAllChecked = almacenTipoFilteredItems.length > 0 && almacenTipoFilteredItems.every((it) => s.almacenCheckedIds[it.id]);
+  const almacenTipoSomeChecked = almacenTipoFilteredItems.some((it) => s.almacenCheckedIds[it.id]);
+  const almacenTipoCheckState: boolean | 'indeterminate' = almacenTipoAllChecked ? true : almacenTipoSomeChecked ? 'indeterminate' : false;
+  const toggleAlmacenTipoAll = () =>
+    patch((prev) => {
+      const next = { ...prev.almacenCheckedIds };
+      if (almacenTipoAllChecked) almacenTipoFilteredItems.forEach((it) => delete next[it.id]);
+      else almacenTipoFilteredItems.forEach((it) => (next[it.id] = true));
+      return { almacenCheckedIds: next, almacenSelectedId: null, tab: 0 };
+    });
 
   const flatten = (): TreeNode[] => {
     const out: TreeNode[] = [];
@@ -1515,13 +1529,14 @@ export default function TrazabilidadApp() {
   const noSelection = !sel && !multi;
 
   const almacenAtrNodes: AlmacenItem[] = almacenMulti ? almacenCheckedItems : almacenSel ? [almacenSel] : [];
-  const almacenActivoColsLabels = ['Tipo', 'ID'].concat(appA);
+  const almacenActivoColsLabels = ['Tipo', 'ID', 'Almacén', 'Kilómetros'].concat(appA.filter((c) => c !== 'Kilómetros'));
   const almacenActivoCols = almacenActivoColsLabels.map((label) => ({ label }));
   const almacenActivoRows = almacenAtrNodes.map((n, i) => ({
     id: 'aa' + i,
     cells: almacenActivoColsLabels.map((label) => {
       if (label === 'Tipo') return txtCell(n.tipo);
       if (label === 'ID') return idCell(n.code);
+      if (label === 'Almacén') return txtCell(n.almacenNombre || s.almacen);
       if (label === 'Kilómetros') return kmCell(n.km);
       return txtCell(EXTRA[label] ? EXTRA[label](n as unknown as TreeNode, i) : '—');
     }),
@@ -1539,6 +1554,9 @@ export default function TrazabilidadApp() {
 
   const flotaOptions = ['Urbos 100', 'Zaragoza 3000'];
   const almacenOptions = Object.keys(ALMACENES);
+  // Only the single-select "Almacén" pickers (landing card + "Consultar por almacén" screen)
+  // offer "Todos" — it doesn't belong in the multiselect chip fields used elsewhere.
+  const almacenSelectOptions = ['Todos', ...almacenOptions];
 
   const tcCanShow = (s.tcAppliedFlota.length > 0 || s.tcAppliedAlmacen.length > 0) && s.tcAppliedActivo.length > 0;
   const tcRows = tcCanShow && s.tcTipo ? buscarPorTipo(s.tcTipo as Tipo) : [];
@@ -1828,7 +1846,7 @@ export default function TrazabilidadApp() {
                   <MatSelect
                     label="Almacén"
                     value={s.almacen}
-                    options={almacenOptions}
+                    options={almacenSelectOptions}
                     width="100%"
                     onSelect={(v) => patch({ almacen: v })}
                   />
@@ -3316,7 +3334,7 @@ export default function TrazabilidadApp() {
               <MatSelect
                 label="Almacén"
                 value={s.dAlmacen || 'Seleccionar'}
-                options={almacenOptions}
+                options={almacenSelectOptions}
                 width={250}
                 onSelect={(v) => patch({ dAlmacen: v })}
               />
@@ -3413,6 +3431,12 @@ export default function TrazabilidadApp() {
                       showBack
                       onBack={() => patch({ almacenSelectedTipo: null, almacenBuscar: '' })}
                     />
+                    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, padding: '0 8px' }}>
+                      <MatCheckbox checked={almacenTipoCheckState} onChange={toggleAlmacenTipoAll} />
+                      <span style={{ fontSize: 14, lineHeight: '20px', letterSpacing: '0.25px', color: '#18171C' }}>
+                        Seleccionar todo
+                      </span>
+                    </div>
                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16 }}>
                       <div style={{ flex: '1 1 0', minWidth: 0 }}>
                         <MatFormField
@@ -3455,10 +3479,7 @@ export default function TrazabilidadApp() {
 
                     <div style={{ display: 'flex', flexDirection: 'column', maxHeight: 680, overflowY: 'auto' }}>
                       {(() => {
-                        const t = s.almacenSelectedTipo as string;
-                        const rawItems = almacenData.items[t] || [];
-                        const filteredItems = rawItems.filter(almacenFilterFn).filter(almacenSearchFn);
-                        return filteredItems.map((it) => (
+                        return almacenTipoFilteredItems.map((it) => (
                           <div key={it.id}>
                             {it.groupLabel && (
                               <div
@@ -3537,6 +3558,27 @@ export default function TrazabilidadApp() {
                                 <span style={{ fontSize: 16, lineHeight: '24px', letterSpacing: '0.5px', color: '#170F3E' }}>{it.label}</span>
                                 <span style={{ fontSize: 12, lineHeight: '16px', letterSpacing: '0.4px', color: '#474554' }}>{it.code}</span>
                               </span>
+                              {s.almacen === 'Todos' && it.almacenNombre && (
+                                <span
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    height: 24,
+                                    padding: '0 12px',
+                                    borderRadius: 8,
+                                    background: '#F0F0F4',
+                                    color: '#474554',
+                                    fontSize: 12,
+                                    fontWeight: 500,
+                                    lineHeight: '16px',
+                                    letterSpacing: '0.4px',
+                                    whiteSpace: 'nowrap',
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  {it.almacenNombre}
+                                </span>
+                              )}
                               <TagSemanticStatus status="Info" label={it.km} />
                             </div>
                             {it.conHijos && it.children && s.almacenExpandedIds[it.id] && (
@@ -3666,29 +3708,6 @@ export default function TrazabilidadApp() {
                           { label: 'Kilometraje parcial' },
                         ]}
                         rows={almacenHistRows}
-                      />
-                      <div>
-                        <MatButtonOutlined label="Descargar" icon="Download" />
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
-                      <span style={{ fontWeight: 500, fontSize: 16, lineHeight: '25px', letterSpacing: '0.15px', color: '#18171C' }}>
-                        Movimientos
-                      </span>
-                      <Table
-                        cols={[{ label: 'Fecha' }, { label: 'Tipo' }, { label: 'Con padre' }, { label: 'Con hijos' }]}
-                        rows={[
-                          {
-                            id: 'm1',
-                            cells: [
-                              txtCell('2025-06-30'),
-                              txtCell('Intercambio entre unidades'),
-                              txtCell(almacenSel.conPadre ? 'Sí' : 'No'),
-                              txtCell(almacenSel.conHijos ? 'Sí' : 'No'),
-                            ],
-                          },
-                        ]}
                       />
                       <div>
                         <MatButtonOutlined label="Descargar" icon="Download" />

@@ -486,8 +486,8 @@ function buildAlmacen(seedOffset: number, bogiePrefix: string, ruedaPrefix: stri
     });
     eje.conHijos = true;
     eje.children = [rueda1, rueda2];
-    // Eje 706803's ruedas are freshly replaced — 0km.
-    if (eje.code === '706803') {
+    // Ejes 706803, 713606 and 720409's ruedas are freshly replaced — 0km.
+    if (eje.code === '706803' || eje.code === '713606' || eje.code === '720409') {
       rueda1.km = fmtKm(0);
       rueda2.km = fmtKm(0);
     }

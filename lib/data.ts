@@ -296,6 +296,15 @@ export interface TipoComponenteRow {
   tipo: Tipo;
   code: string;
   km: string;
+  unidadCode?: string;
+}
+
+// Real unidad serial numbers across every flota — used to fill the "Unidad" attribute for
+// items that aren't mounted on any unidad (warehouse stock) with a plausible (stable) one.
+export const UNIDAD_CODES = ['3220', '3230', '3240', '3250'];
+
+export function mockUnidadCode(code: string): string {
+  return UNIDAD_CODES[seedFromCode(code) % UNIDAD_CODES.length];
 }
 
 // Every real instance of a given tipo across every flota (in service) and every
@@ -306,7 +315,7 @@ export function buscarPorTipo(tipo: Tipo): TipoComponenteRow[] {
     (function walk(nodes: TreeNode[]) {
       nodes.forEach((n) => {
         if (n.tipo === tipo) {
-          rows.push({ id: n.id, ubicacion: 'Flota', ubicacionNombre: flotaNombre, tipo: n.tipo, code: n.code, km: n.km });
+          rows.push({ id: n.id, ubicacion: 'Flota', ubicacionNombre: flotaNombre, tipo: n.tipo, code: n.code, km: n.km, unidadCode: n.unidadCode });
         }
         if (n.children) walk(n.children);
       });
@@ -314,7 +323,7 @@ export function buscarPorTipo(tipo: Tipo): TipoComponenteRow[] {
   });
   Object.entries(ALMACENES).forEach(([tallerNombre, almacen]) => {
     (almacen.items[tipo] || []).forEach((it) => {
-      rows.push({ id: it.id, ubicacion: 'Taller', ubicacionNombre: tallerNombre, tipo: it.tipo, code: it.code, km: it.km });
+      rows.push({ id: it.id, ubicacion: 'Taller', ubicacionNombre: tallerNombre, tipo: it.tipo, code: it.code, km: it.km, unidadCode: mockUnidadCode(it.code) });
     });
   });
   return rows;
@@ -794,6 +803,50 @@ function siblingsOfType(unidadCode: string, tipo: Tipo): string[] {
     });
   })(unidad?.children || []);
   return out;
+}
+
+// Deterministic numeric seed from an alphanumeric code (e.g. "5149-WH-042"), so mock rows
+// stay stable between renders without depending on a real unidad tree.
+function seedFromCode(code: string): number {
+  let h = 0;
+  for (let i = 0; i < code.length; i++) h = (h * 31 + code.charCodeAt(i)) % 1000000;
+  return h || 1;
+}
+
+// Plausible id prefix/digit-count per hijo tipo, used only to fill slots with no real
+// linked child (see buildAlmacen) with a random-looking (but stable) code.
+const ALMACEN_HIJO_FORMAT: Record<string, [string, number]> = {
+  Eje: ['', 6],
+  Rueda: ['082850-', 4],
+  Reductora: ['9427/W/', 3],
+};
+
+// Mock "Histórico del componente hijo" rows for a warehouse item — mirrors hijoRows' shape
+// (flota) but sourced from an AlmacenItem, which isn't mounted in a unidad tree. Reuses any
+// REAL linked children set by buildAlmacen and fills the rest with random (stable) codes.
+export function almacenHijoRows(item: AlmacenItem, tipo: string): { id: string; cells: Cell[] }[] {
+  const singTipo = (SING[tipo] || 'Rueda') as Tipo;
+  const [prefix, digits] = ALMACEN_HIJO_FORMAT[singTipo] || ['', 4];
+  const seed = seedFromCode(item.code);
+  const real = (item.children || []).filter((c) => c.tipo === singTipo).map((c) => c.code);
+  const pick = (i: number) => prefix + pad(shuffle(seed + i * 7 + 1, Math.pow(10, digits), 6803), digits);
+  const ids = [0, 1, 2, 3, 4, 5].map((i) => real[i] || pick(i));
+  const k = item.km;
+  return [
+    {
+      id: 'r1',
+      cells: [
+        txt('2025-12-27 09:00'),
+        bool(),
+        id(ids[0]),
+        km(k, undefined, fechaActualizacion(seed + 1)),
+        id(ids[1]),
+        km(k, undefined, fechaActualizacion(seed + 2)),
+      ],
+    },
+    { id: 'r2', cells: [txt('2025-06-30 15:50'), txt('2026-01-11 10:05'), id(ids[2]), km(k), id(ids[3]), km(k)] },
+    { id: 'r3', cells: [txt('2025-01-01 07:10'), txt('2025-07-15 12:25'), id(ids[4]), km(k), id(ids[5]), km(k)] },
+  ];
 }
 
 export function hijoRows(sel: TreeNode | null, tipo: string): { id: string; cells: Cell[] }[] {

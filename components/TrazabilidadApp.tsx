@@ -39,6 +39,7 @@ import {
   TreeNode,
   USOS_TALLER,
   almacenHistorial,
+  almacenHijoRows as buildAlmacenHijoRows,
   buscarPorTipo,
   fechaActualizacion,
   find,
@@ -47,6 +48,7 @@ import {
   hijoRows as buildHijoRows,
   historial as buildHistorial,
   mergedAlmacen,
+  mockUnidadCode,
   id as idCell,
   km as kmCell,
   txt as txtCell,
@@ -98,6 +100,7 @@ interface AppState {
   almacenCheckedIds: Record<string, boolean>;
   almacenSelectedId: string | null;
   almacenBuscar: string;
+  almacenHijo: string;
   almacenFilterOpen: boolean;
   almacenFilter: { conHijos: boolean; sinHijos: boolean; conPadre: boolean; sinPadre: boolean };
   tcTipo: string;
@@ -170,6 +173,7 @@ const initialState: AppState = {
   almacenCheckedIds: {},
   almacenSelectedId: null,
   almacenBuscar: '',
+  almacenHijo: '',
   almacenFilterOpen: false,
   almacenFilter: { conHijos: true, sinHijos: true, conPadre: true, sinPadre: true },
   almacenExpandedIds: {},
@@ -1463,7 +1467,7 @@ export default function TrazabilidadApp() {
   const hijoRowsData = buildHijoRows(sel, hijoValue);
 
   // ---- atributos tab ----
-  const activoOpts = ['Kilómetros', 'Ciclos', 'Horas', 'Fecha overhaul', 'Km overhaul', 'Modelo', 'Material'];
+  const activoOpts = ['Kilómetros', 'Ciclos', 'Horas', 'Fecha overhaul', 'Km overhaul', 'Modelo', 'Material', 'Unidad', 'Posición'];
   const posOpts = ['Location', 'Visibility', 'CAF-Code', 'Aux_Posición', 'Knuckle'];
   const aOn = s.chipsActivo.length > 0;
   const pOn = s.chipsPos.length > 0;
@@ -1504,11 +1508,12 @@ export default function TrazabilidadApp() {
     Aux_Posición: (_n, i) => 'AUX-' + ((i % 4) + 1),
     Knuckle: (_n, i) => (i % 2 === 0 ? 'N1' : 'N2'),
   };
-  const buildAtrCell = (label: string, n: TreeNode, i: number, withMeta: boolean) => {
+  const buildAtrCell = (label: string, n: TreeNode, i: number, withMeta: boolean, forActivo?: boolean) => {
     const seed = (Number(n.code) || i + 1) + label.length;
     if (label === 'Tipo') return txtCell(n.tipo || 'Eje');
     if (label === 'ID') return idCell(n.code);
-    if (label === 'Posición') return txtCell(n.label);
+    if (label === 'Unidad') return txtCell(n.unidadCode || mockUnidadCode(n.code));
+    if (label === 'Posición') return forActivo ? txtCell(String(i + 1)) : txtCell(n.label);
     if (label === 'Kilómetros') return kmCell(n.km, undefined, withMeta ? fechaActualizacion(seed) : undefined);
     return txtCell(EXTRA[label] ? EXTRA[label](n, i) : '—', undefined, withMeta ? fechaActualizacion(seed) : undefined);
   };
@@ -1517,7 +1522,7 @@ export default function TrazabilidadApp() {
   const posColsLabels = ['Tipo', 'Posición'].concat(appP);
   const activoCols = activoColsLabels.map((label) => ({ label }));
   const posCols = posColsLabels.map((label) => ({ label }));
-  const activoRows = atrNodes.map((n, i) => ({ id: 'a' + i, cells: activoColsLabels.map((label) => buildAtrCell(label, n, i, true)) }));
+  const activoRows = atrNodes.map((n, i) => ({ id: 'a' + i, cells: activoColsLabels.map((label) => buildAtrCell(label, n, i, true, true)) }));
   const posRows = atrNodes.map((n, i) => ({ id: 'p' + i, cells: posColsLabels.map((label) => buildAtrCell(label, n, i, false)) }));
   const contentTabs = multi
     ? ['Atributos de activo', 'Atributos de posición']
@@ -1538,6 +1543,8 @@ export default function TrazabilidadApp() {
       if (label === 'ID') return idCell(n.code);
       if (label === 'Almacén') return txtCell(n.almacenNombre || s.almacen);
       if (label === 'Kilómetros') return kmCell(n.km);
+      if (label === 'Unidad') return txtCell(mockUnidadCode(n.code));
+      if (label === 'Posición') return txtCell(String(i + 1));
       return txtCell(EXTRA[label] ? EXTRA[label](n as unknown as TreeNode, i) : '—');
     }),
   }));
@@ -1546,6 +1553,21 @@ export default function TrazabilidadApp() {
   const showAlmacenHistorial = !almacenMulti && !!almacenSel && s.tab === 0;
   const showAlmacenActivo = (almacenMulti && s.tab === 0) || (!almacenMulti && !!almacenSel && s.tab === 1);
   const almacenHistRows = almacenSel ? almacenHistorial(almacenSel) : [];
+
+  const almacenHijoOptions = (almacenSel && HIJOS[almacenSel.tipo]) || [];
+  const almacenHijoValue = almacenHijoOptions.indexOf(s.almacenHijo) !== -1 ? s.almacenHijo : almacenHijoOptions[0] || '';
+  const almacenHijoSing = SING[almacenHijoValue] || 'Componente';
+  const almacenHijoIsLeftRight = almacenHijoSing === 'Rueda' || almacenHijoSing === 'Reductora';
+  const almacenHijoChildren = (almacenSel?.children || []).filter((c) => (c.tipo || 'Eje') === almacenHijoSing);
+  const almacenHijoCols = [
+    'Fecha desde',
+    'Fecha hasta',
+    almacenHijoIsLeftRight ? almacenHijoSing + ' izquierda' : almacenHijoChildren[0]?.label || almacenHijoSing + ' 1',
+    'Kilómetros',
+    almacenHijoIsLeftRight ? almacenHijoSing + ' derecha' : almacenHijoChildren[1]?.label || almacenHijoSing + ' 2',
+    'Kilómetros',
+  ].map((label) => ({ label }));
+  const almacenHijoRowsData = almacenSel ? buildAlmacenHijoRows(almacenSel, almacenHijoValue) : [];
 
   const emptyFleet = isFlota && treeRoots.length === 0;
   const notApplied = !s.applied;
@@ -1573,6 +1595,8 @@ export default function TrazabilidadApp() {
       if (label === 'Ubicación') return txtCell(r.ubicacionNombre);
       if (label === 'Tipo') return txtCell(r.tipo);
       if (label === 'ID') return idCell(r.code);
+      if (label === 'Unidad') return txtCell(r.unidadCode || mockUnidadCode(r.code));
+      if (label === 'Posición') return txtCell(String(i + 1));
       const seed = (Number(r.code) || i + 1) + label.length;
       if (label === 'Kilómetros') {
         const hash = (seed * 2654435761) % 300000;
@@ -3713,6 +3737,31 @@ export default function TrazabilidadApp() {
                         <MatButtonOutlined label="Descargar" icon="Download" />
                       </div>
                     </div>
+
+                    {almacenHijoOptions.length > 0 && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'stretch' }}>
+                        <span style={{ fontWeight: 500, fontSize: 16, lineHeight: '25px', letterSpacing: '0.15px', color: '#18171C' }}>
+                          Histórico del componente hijo
+                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                          <MatSelect
+                            label="Tipo de componente"
+                            value={almacenHijoValue}
+                            options={almacenHijoOptions}
+                            width={220}
+                            onSelect={(v) => patch({ almacenHijo: v })}
+                          />
+                        </div>
+                        <Table
+                          cols={almacenHijoCols}
+                          rows={almacenHijoRowsData}
+                          onIdInfoClick={(code) => patch({ historialPopupCode: code })}
+                        />
+                        <div>
+                          <MatButtonOutlined label="Descargar" icon="Download" />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
